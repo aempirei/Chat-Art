@@ -9,12 +9,11 @@
  */
 
 /*
- * prepare a jpeg for conversion using netpbm:
+ * an example preparation of a jpeg for conversion using netpbm:
  *
  * djpeg image.pgm | pnmscale -ysize 120 | ppmnorm | ppmquant -fs 2 | ppmtopgm | ./pgmtobraile
  *
  */
- 
 
 #include <stdio.h>
 #include <stdlib.h>
