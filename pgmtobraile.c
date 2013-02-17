@@ -12,7 +12,7 @@
  * also it includes its own pgm dithering now
  * an example preparation of a jpeg for conversion using netpbm:
  *
- * pnmscale -ysize 120 | ppmnorm | ppmtopgm | ./pgmtobraile
+ * djpeg rms.jpg | pnmscale -ysize 120 | ppmnorm | ppmtopgm | ./pgmtobraile
  *
  */
 
