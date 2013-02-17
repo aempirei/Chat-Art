@@ -2,7 +2,7 @@ CC = gcc
 CCFLAGS = -Wall -W -w
 CFLAGS = -Wall -W -I. -pedantic -std=gnu99
 LIBFLAGS =
-PROGRAMS = calibrate pgmtobraile
+PROGRAMS = calibrate pgmtobraile pgmtobrailedux
 
 .PHONY: all clean wipe
 
@@ -12,6 +12,9 @@ calibrate: calibrate.o
 	$(CC) $(CCFLAGS) -o $@ $^ $(LIBFLAGS) -lm
 
 pgmtobraile: pgmtobraile.o
+	$(CC) $(CCFLAGS) -o $@ $^ $(LIBFLAGS)
+
+pgmtobrailedux: pgmtobrailedux.o
 	$(CC) $(CCFLAGS) -o $@ $^ $(LIBFLAGS)
 
 clean:
