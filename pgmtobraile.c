@@ -9,9 +9,10 @@
  */
 
 /*
+ * also it includes its own pgm dithering now
  * an example preparation of a jpeg for conversion using netpbm:
  *
- * djpeg image.pgm | pnmscale -ysize 120 | ppmnorm | ppmquant -fs 2 | ppmtopgm | ./pgmtobraile
+ * pnmscale -ysize 120 | ppmnorm | ppmtopgm | ./pgmtobraile
  *
  */
 
