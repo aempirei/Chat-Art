@@ -36,6 +36,45 @@
 #define BIT6(p,x,y,w) BIT((p),(x)+0,(y)+3,(w))
 #define BIT7(p,x,y,w) BIT((p),(x)+1,(y)+3,(w))
 
+
+void dither(uint8_t *data, size_t width, size_t height) {
+
+	int *front;
+	int *error;
+
+	size_t sz = width * height;
+
+	front = malloc(sizeof(int) * sz);
+	error = malloc(sizeof(int) * sz);
+
+	memset(error, 0, sizeof(int) * sz);
+
+	for(size_t z = 0; z < sz; z++)
+		front[z] = ((data[z] > 40) ? 128 : 32) - data[z];
+
+	for(size_t y = 1; y < height - 1; y++) {
+		for(size_t x = 1; x < width - 1; x++) {
+
+			int d = BIT(front,x,y,width) / 6;
+
+			BIT(error,x,y-1,width) += d;
+			BIT(error,x-1,y,width) += d;
+			BIT(error,x+1,y,width) += d;
+			BIT(error,x,y+1,width) += d;
+
+			BIT(error,x,y,width) -= d * 6;
+		}
+	}
+
+	for(size_t z = 0; z < sz; z++) {
+		int x = (int)data[z] + error[z];
+		data[z] = (uint8_t)((x < 0) ? 0 : (x > 255) ? 255 : x);
+	}
+
+	free(front);
+	free(error);
+}
+
 void braileencode(FILE *fpout, uint8_t *data, size_t width, size_t height) {
 	for(size_t y = 0; y < height; y += 4) {
 		for(size_t x = 0; x < width; x += 2) {
@@ -56,6 +95,7 @@ void braileencode(FILE *fpout, uint8_t *data, size_t width, size_t height) {
 
 void pgmtobraile(FILE * fpin, FILE * fpout) {
 
+	const size_t max_rad = 16;
 	const int expected_maxval = 255;
 	const char *locale = "";
 	uint8_t *data;
@@ -99,6 +139,9 @@ void pgmtobraile(FILE * fpin, FILE * fpout) {
 	if(fgetc(fpin) != EOF || !feof(fpin)) {
 		fprintf(stderr, "unexpected trailing data after pgm\n");
 	}
+
+	for(size_t rad = 0; rad < max_rad; rad++)
+		dither(data, width, height);
 
 	braileencode(fpout, data, width, height);
 

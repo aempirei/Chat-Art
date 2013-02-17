@@ -2,12 +2,14 @@ CC = gcc
 CCFLAGS = -Wall -W -w
 CFLAGS = -Wall -W -I. -pedantic -std=gnu99
 LIBFLAGS =
-PROGRAMS = pgmtobraile
-INDENTFLAGS = -i4 -br -ce -nprs -nbfda -npcs -ncs -sob -brf -nut -bap -bad -npsl -l140
+PROGRAMS = calibrate pgmtobraile
 
-.PHONY: all clean wipe tidy
+.PHONY: all clean wipe
 
 all: $(PROGRAMS)
+
+calibrate: calibrate.o
+	$(CC) $(CCFLAGS) -o $@ $^ $(LIBFLAGS) -lm
 
 pgmtobraile: pgmtobraile.o
 	$(CC) $(CCFLAGS) -o $@ $^ $(LIBFLAGS)
@@ -17,6 +19,3 @@ clean:
 
 wipe: clean
 	rm -f $(PROGRAMS)
-
-tidy:
-	indent $(INDENTFLAGS) *.c
