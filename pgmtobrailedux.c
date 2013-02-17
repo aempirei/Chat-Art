@@ -96,7 +96,6 @@ void dither(int *data, int *error, size_t width, size_t height) {
 	}
 
 	free(front);
-	free(error);
 }
 
 void braileencode(FILE *fpout, int *data, size_t width, size_t height) {
@@ -179,6 +178,7 @@ void pgmtobraile(FILE * fpin, FILE * fpout) {
 	braileencode(fpout, img, width, height);
 
 	free(bytedata);
+	free(error);
 	free(img);
 }
 
