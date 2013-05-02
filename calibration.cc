@@ -93,11 +93,17 @@ std::string pad(int n) {
 }
 std::string edge = pad(2);
 
-void display_preamble() {
-	const ints preamble = { 5,4,1,7,4,5,5 };
-	const size_t pattern_sz = 5+4+1+7+4+5+5 + 6;
+ints prefix_sequence = {5,4,1,7,4,5,5};
+ints suffix_sequence = {5,1,2,4,3};
 
-	std::cout << edge << pad(pattern_sz) << edge << std::endl;
+void display_code_sequence(const ints& preamble) {
+	
+	size_t pattern_sz = 10;
+
+	for(ints::const_iterator iter = preamble.begin(); iter != preamble.end(); iter++)
+		pattern_sz += *iter;
+
+	std::cout << pad(pattern_sz) << std::endl;
 
 	std::cout << edge << ansi::bg(ansi::white) << std::setw(1) << ' ';
 
@@ -107,7 +113,7 @@ void display_preamble() {
 	}
 	std::cout << edge << ansi::clear << std::endl;
 
-	std::cout << edge << pad(pattern_sz) << edge << ansi::clear << std::endl;
+	std::cout << pad(pattern_sz) << ansi::clear << std::endl;
 }
 
 void display_calibration() {
@@ -115,7 +121,7 @@ void display_calibration() {
 	///////////
 	// preamble
 
-	display_preamble();
+	display_code_sequence(prefix_sequence);
 
 	///////
 	// font
@@ -157,7 +163,8 @@ void display_calibration() {
 	///////////
 	// preamble
 
-	display_preamble();
+	display_code_sequence(suffix_sequence);
+
 }
 
 void process_calibration() {
