@@ -123,9 +123,9 @@ void pgmtobraile(FILE * fpin, FILE * fpout) {
 	uint8_t *bytedata;
 	int *img;
 	int *error;
-	size_t width;
-	size_t height;
-	size_t maxval;
+	unsigned int width;
+	unsigned int height;
+	unsigned int maxval;
 	int ch;
 	
 	if (setlocale(LC_CTYPE, locale) == NULL) {
@@ -150,7 +150,7 @@ void pgmtobraile(FILE * fpin, FILE * fpout) {
 	}
 
 	if(maxval != expected_maxval) {
-		fprintf(stderr, "unexpected maxval of %d, was expecting %d\n", maxval, expected_maxval);
+		fprintf(stderr, "unexpected maxval of %d, was expecting %d\n", maxval, (int)expected_maxval);
 	}
 
 	bytedata = malloc(width * height);

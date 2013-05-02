@@ -32,14 +32,14 @@ const char ansi_clear[] = "\x1b[0m";
 
 void moveyx(char *s, size_t sz, size_t y, size_t x) {
 	/* origin is (1,1) */
-	snprintf(s, sz, "\x1b[%d;%dH", y, x);
+	snprintf(s, sz, "\x1b[%d;%dH", (int)y, (int)x);
 }
 
 void setfg(char *s, size_t sz, size_t color) {
-	snprintf(s, sz, "\x1b[38;5;%dm", color);
+	snprintf(s, sz, "\x1b[38;5;%dm", (int)color);
 }
 void setbg(char *s, size_t sz, size_t color) {
-	snprintf(s, sz, "\x1b[48;5;%dm", color);
+	snprintf(s, sz, "\x1b[48;5;%dm", (int)color);
 }
 
 void fsetfg(size_t color) {

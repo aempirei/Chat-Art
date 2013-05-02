@@ -1,24 +1,34 @@
 CC = gcc
-CCFLAGS = -Wall -W -w
-CFLAGS = -Wall -W -I. -pedantic -std=gnu99
+CXX = g++
+CFLAGS = -Wall -W -pedantic -std=gnu99
+CXXFLAGS = -Wall -W -pedantic -std=gnu++11
+CPPFLAGS = -I.
 LIBFLAGS =
-PROGRAMS = calibrate pgmtobraile pgmtobrailedux
+PROGRAMS = auto.calibration.cc auto.calibrate.c auto.pgmtobraile.c auto.pgmtobrailedux.c
 
-.PHONY: all clean wipe
+.PHONY: all clean wipe auto.calibration.cc auto.calibrate.c auto.pgmtobraile.c auto.pgmtobrailedux.c
 
 all: $(PROGRAMS)
 
+auto.calibration.cc: calibration
+
+calibration: calibration.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBFLAGS)
+
+auto.calibrate.c: calibrate
+
 calibrate: calibrate.o
-	$(CC) $(CCFLAGS) -o $@ $^ $(LIBFLAGS) -lm
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBFLAGS) -lm
+
+auto.pgmtobraile.c: pgmtobraile
 
 pgmtobraile: pgmtobraile.o
-	$(CC) $(CCFLAGS) -o $@ $^ $(LIBFLAGS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBFLAGS)
+
+auto.pgmtobrailedux.c: pgmtobrailedux
 
 pgmtobrailedux: pgmtobrailedux.o
-	$(CC) $(CCFLAGS) -o $@ $^ $(LIBFLAGS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBFLAGS)
 
 clean:
-	rm -f *.o *~
-
-wipe: clean
-	rm -f $(PROGRAMS)
+	rm -f *.o *~ *.dvi *.aux
