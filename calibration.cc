@@ -28,9 +28,7 @@
 #include <unistd.h>
 
 typedef std::list<int> ints;
-typedef uint8_t rgb_t[3];
 typedef size_t pos_t[2];
-typedef uint32_t code_t;
 
 ///////
 // ANSI
@@ -78,6 +76,16 @@ namespace ansi {
 	const std::string clear = esc(0, 'm');
 
 	enum color_index { black, red, green, yellow, blue, magenta, cyan, white, first_color = black, last_color = white };
+}
+
+//////
+// RGB
+//////
+
+typedef uint8_t rgb_t[3];
+
+bool rgb_equal(const rgb_t c1, const rgb_t c2) {
+	return c1[0] == c2[0] && c1[1] == c2[1] && c1[2] == c2[2];
 }
 
 //////
@@ -159,39 +167,20 @@ tile::tile(const pnm& source, const pos_t tile_sz, const pos_t tile_pos) : sourc
 
 typedef std::list<tile> tiles;
 
-void help(const char *prog) {
-	std::cerr << "\nusage: " << prog << " [options]\n\n";
-	std::cerr << "either display the calibration pattern to save a snapshot of, or process a snapshot.\n";
-	std::cerr << "after displaying the calibration in your terminal, save a snapshot of the pattern.\n"; 
-	std::cerr << "this can usually be done via the PRINT SCREEN button. afterward, convert it to the\n";
-	std::cerr << "PNM file format.  netpbm, djpeg or imagemagick can usually do this. finally, pipe\n";
-	std::cerr << "the PNM file into this program again using the '-c' option\n\n";
-	std::cerr << "\t-d   display the calibration pattern to stdout\n";
-	std::cerr << "\t-p   process calibration pattern image snapshot from stdin\n";
-	std::cerr << "\t-h   show this help\n\n";
-	std::cerr << "report bugs to <aempirei@gmail.com>\n\n";
-}
+///////
+// CODE
+///////
+
+typedef uint32_t code_t;
 
 static const code_t prefix_code = 0xA55FACED;
 static const code_t suffix_code = 0x1DEADFED;
 
 static const size_t code_sz = sizeof(code_t) * 8;
 
-#define BIT_ISSET(n,b)	(((n) & (1 << (b))) != 0)
-
-void display_code(code_t code) {
-	for(size_t bit_n = 0; bit_n < code_sz; bit_n++) {
-		std::string bgcolor = ansi::bg(BIT_ISSET(code, bit_n) ? ansi::white : ansi::black);
-		std::cout << bgcolor << ' ';
-	}
-	std::cout << ansi::clear << std::endl;
-}
-
 static const size_t calibration_lines = 8;
 
-bool rgb_equal(const rgb_t c1, const rgb_t c2) {
-	return c1[0] == c2[0] && c1[1] == c2[1] && c1[2] == c2[2];
-}
+#define BIT_ISSET(n,b)	(((n) & (1 << (b))) != 0)
 
 bool try_code(const pnm& snapshot, code_t code, size_t x0, size_t y, size_t dx) {
 
@@ -258,6 +247,77 @@ bool find_code(const pnm& snapshot, size_t y0, code_t code, pos_t pos, size_t *t
 	return false;
 }
 
+//////////
+// PROCESS
+//////////
+
+void process_tiles(const pnm& snapshot, const pos_t tile_origin, const pos_t tile_sz) {
+
+	tiles tiles;
+
+	for(size_t tile_line = 0; tile_line < calibration_lines; tile_line++) {
+		for(size_t tile_column = 0; tile_column < code_sz; tile_column++) {
+
+			pos_t tile_pos = { tile_column * tile_sz[0] + tile_origin[0], tile_line * tile_sz[1] + tile_origin[1] };
+
+			tiles.push_back(tile(snapshot, tile_sz, tile_pos));
+		}
+	}
+
+	for(tiles::const_iterator iter = tiles.begin(); iter != tiles.end(); iter++) {
+		// find colors
+		// find fonts
+		// calibrate
+
+	}
+
+	// output calibration configuration
+}
+
+void process_calibration() {
+
+	pnm snapshot(stdin);
+
+	if(snapshot.isloaded()) {
+
+		pos_t prefix_pos;
+		pos_t suffix_pos;
+
+		size_t prefix_tile_width;
+		size_t suffix_tile_width;
+
+		if(	find_code(snapshot, 0, prefix_code, prefix_pos, &prefix_tile_width) &&
+			find_code(snapshot, prefix_pos[1] + 1, suffix_code, suffix_pos, &suffix_tile_width))
+		{
+
+			size_t hn = suffix_pos[1] - prefix_pos[1];
+
+			if(	(prefix_tile_width == suffix_tile_width) &&
+				(prefix_pos[0] == suffix_pos[0]) &&
+				(hn % (calibration_lines - 1) == 0))
+			{
+
+				pos_t tile_sz = { prefix_tile_width, hn / (calibration_lines - 1) };
+
+				process_tiles(snapshot, prefix_pos, tile_sz);
+			}
+		}
+	}
+}
+
+//////////
+// DISPLAY
+//////////
+
+void display_code(code_t code) {
+	for(size_t bit_n = 0; bit_n < code_sz; bit_n++) {
+		std::string bgcolor = ansi::bg(BIT_ISSET(code, bit_n) ? ansi::white : ansi::black);
+		std::cout << bgcolor << ' ';
+	}
+	std::cout << ansi::clear << std::endl;
+}
+
+
 void display_calibration() {
 
 	//
@@ -313,59 +373,17 @@ void display_calibration() {
 
 }
 
-void process_tiles(const pnm& snapshot, const pos_t tile_origin, const pos_t tile_sz) {
-
-	tiles tiles;
-
-	for(size_t tile_line = 0; tile_line < calibration_lines; tile_line++) {
-		for(size_t tile_column = 0; tile_column < code_sz; tile_column++) {
-
-			pos_t tile_pos = { tile_column * tile_sz[0] + tile_origin[0], tile_line * tile_sz[1] + tile_origin[1] };
-
-			tiles.push_back(tile(snapshot, tile_sz, tile_pos));
-		}
-	}
-
-	for(tiles::const_iterator iter = tiles.begin(); iter != tiles.end(); iter++) {
-		// find colors
-		// find fonts
-		// calibrate
-
-	}
-
-	// output calibration configuration
-}
-
-
-void process_calibration() {
-
-	pnm snapshot(stdin);
-
-	if(snapshot.isloaded()) {
-
-		pos_t prefix_pos;
-		pos_t suffix_pos;
-
-		size_t prefix_tile_width;
-		size_t suffix_tile_width;
-
-		if(	find_code(snapshot, 0, prefix_code, prefix_pos, &prefix_tile_width) &&
-			find_code(snapshot, prefix_pos[1] + 1, suffix_code, suffix_pos, &suffix_tile_width))
-		{
-
-			size_t hn = suffix_pos[1] - prefix_pos[1];
-
-			if(	(prefix_tile_width == suffix_tile_width) &&
-				(prefix_pos[0] == suffix_pos[0]) &&
-				(hn % (calibration_lines - 1) == 0))
-			{
-
-				pos_t tile_sz = { prefix_tile_width, hn / (calibration_lines - 1) };
-
-				process_tiles(snapshot, prefix_pos, tile_sz);
-			}
-		}
-	}
+void help(const char *prog) {
+	std::cerr << "\nusage: " << prog << " [options]\n\n";
+	std::cerr << "either display the calibration pattern to save a snapshot of, or process a snapshot.\n";
+	std::cerr << "after displaying the calibration in your terminal, save a snapshot of the pattern.\n"; 
+	std::cerr << "this can usually be done via the PRINT SCREEN button. afterward, convert it to the\n";
+	std::cerr << "PNM file format.  netpbm, djpeg or imagemagick can usually do this. finally, pipe\n";
+	std::cerr << "the PNM file into this program again using the '-c' option\n\n";
+	std::cerr << "\t-d   display the calibration pattern to stdout\n";
+	std::cerr << "\t-p   process calibration pattern image snapshot from stdin\n";
+	std::cerr << "\t-h   show this help\n\n";
+	std::cerr << "report bugs to <aempirei@gmail.com>\n\n";
 }
 
 int main(int argc, char **argv) {
