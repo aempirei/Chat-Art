@@ -155,6 +155,9 @@ void display_code(code_t code) {
 	std::cout << ansi::clear << std::endl;
 }
 
+void find_code(const pnm& snapshot, code_t code) {
+}
+
 #undef BIT_ISSET
 
 void display_calibration() {
@@ -209,13 +212,19 @@ void display_calibration() {
 }
 
 void process_calibration() {
-	// read pnm file
-	// find preamble
-	// find registration
-	// find colors
-	// find fonts
-	// calibrate
-	// output calibration configuration
+
+	pnm snapshot(stdin);
+
+	if(snapshot.isloaded()) {
+
+		std::cout << "# loaded pnm " << snapshot.width << " X " << snapshot.height << std::endl;
+		find_code(snapshot, prefix_code);
+		find_code(snapshot, suffix_code);
+		// find colors
+		// find fonts
+		// calibrate
+		// output calibration configuration
+	}
 }
 
 int main(int argc, char **argv) {
