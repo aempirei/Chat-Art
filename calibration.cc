@@ -135,18 +135,16 @@ const rgb_t *pnm::pixel(size_t line, size_t column) const {
 	return &data[line * width + column];
 }
 
-class tile {
-	private:
+struct tile {
 		const pnm& source;
-		pos_t tile_sz;
-		pos_t tile_pos;
-	public:
+		pos_t size;
+		pos_t position;
 		tile(const pnm& source, const pos_t tile_sz, const pos_t tile_pos);
 };
 
 tile::tile(const pnm& source, const pos_t tile_sz, const pos_t tile_pos) : source(source) {
-	memcpy(this->tile_sz, tile_sz, sizeof(pos_t));
-	memcpy(this->tile_pos, tile_pos, sizeof(pos_t));
+	memcpy(size, tile_sz, sizeof(pos_t));
+	memcpy(position, tile_pos, sizeof(pos_t));
 }
 
 typedef std::list<tile> tiles;
@@ -307,12 +305,6 @@ void display_calibration() {
 
 void process_tiles(const pnm& snapshot, const pos_t tile_origin, const pos_t tile_sz) {
 
-	printf("tile size : %dx%d origin : %d,%d\n",
-			(int)tile_sz[0],
-			(int)tile_sz[1],
-			(int)tile_origin[0],
-			(int)tile_origin[1]);
-
 	tiles tiles;
 
 	for(size_t tile_line = 0; tile_line < calibration_lines; tile_line++) {
@@ -324,16 +316,14 @@ void process_tiles(const pnm& snapshot, const pos_t tile_origin, const pos_t til
 		}
 	}
 
-	printf("total tiles = %d\n", (int)tiles.size());
-
 	for(tiles::const_iterator iter = tiles.begin(); iter != tiles.end(); iter++) {
+		// find colors
+		// find fonts
+		// calibrate
+
 	}
 
-	// find colors
-	// find fonts
-	// calibrate
 	// output calibration configuration
-
 }
 
 
