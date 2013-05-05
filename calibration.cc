@@ -141,9 +141,9 @@ void help(const char *prog) {
 
 typedef uint32_t code_t;
 
-code_t prefix_code = 0xA55FACED;
-code_t suffix_code = 0x1DEADFED;
-size_t code_sz = sizeof(code_t) * 8;
+static const code_t prefix_code = 0xA55FACED;
+static const code_t suffix_code = 0x1DEADFED;
+static const size_t code_sz = sizeof(code_t) * 8;
 
 #define BIT_ISSET(n,b)	(((n) & (1 << (b))) != 0)
 
@@ -155,12 +155,33 @@ void display_code(code_t code) {
 	std::cout << ansi::clear << std::endl;
 }
 
+static const size_t calibration_lines = 8;
+static const size_t calibration_columns = code_sz;
+
+void try_code(const pnm& snapshot, code_t code, size_t x, size_t y, size_t w, size_t h) {
+}
+
 void find_code(const pnm& snapshot, code_t code) {
+	size_t max_font_width = snapshot.width / calibration_columns;
+	size_t max_font_height = snapshot.height / calibration_lines;
+	
+	std::cout << "maximum font character size : " << max_font_width << " X " << max_font_height << std::endl;
+
+	for(size_t w = max_font_width; w > 0; w--) {
+		for(size_t h = max_font_height; h > 0; h--) {
+		}
+	}
+
+
 }
 
 #undef BIT_ISSET
 
 void display_calibration() {
+
+	//
+	// calibration text is 8 lines and 32 columns
+	//
 
 	///////////
 	// preamble
@@ -170,7 +191,7 @@ void display_calibration() {
 	///////
 	// font
 
-	std::cout << ansi::fg(ansi::white) << ansi::bg(ansi::black) ;
+	std::cout << ansi::fg(ansi::white) << ansi::bg(ansi::black);
 
 	std::cout << "ABCDEFGHIJKLMNOPQRSTUVWXYZ" << std::endl;
 	std::cout << "abcdefghijklmnopqrstuvwxyz" << std::endl;
