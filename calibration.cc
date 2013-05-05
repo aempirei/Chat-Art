@@ -272,6 +272,8 @@ void process_tiles(const pnm& snapshot, const pos_t tile_origin, const pos_t til
 	}
 
 	// output calibration configuration
+
+	printf("%lu tiles %lux%lupx @ (%lu,%lu)\n", tiles.size(), tile_sz[0],tile_sz[1],tile_origin[0],tile_origin[1]);
 }
 
 void process_calibration() {
