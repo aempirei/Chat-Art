@@ -74,6 +74,8 @@ namespace ansi {
 }
 
 typedef uint8_t rgb_t[3];
+typedef size_t pos_t[2];
+typedef uint32_t code_t;
 
 class pnm {
 	public:
@@ -133,6 +135,21 @@ const rgb_t *pnm::pixel(size_t line, size_t column) const {
 	return &data[line * width + column];
 }
 
+class tile {
+	private:
+		const pnm& source;
+		pos_t tile_sz;
+		pos_t tile_pos;
+	public:
+		tile(const pnm& source, const pos_t tile_sz, const pos_t tile_pos);
+};
+
+tile::tile(const pnm& source, const pos_t tile_sz, const pos_t tile_pos) : source(source) {
+	memcpy(this->tile_sz, tile_sz, sizeof(pos_t));
+	memcpy(this->tile_pos, tile_pos, sizeof(pos_t));
+}
+
+typedef std::list<tile> tiles;
 
 void help(const char *prog) {
 	std::cerr << "\nusage: " << prog << " [options]\n\n";
@@ -147,75 +164,90 @@ void help(const char *prog) {
 	std::cerr << "report bugs to <aempirei@gmail.com>\n\n";
 }
 
-typedef uint32_t code_t;
-
 static const code_t prefix_code = 0xA55FACED;
 static const code_t suffix_code = 0x1DEADFED;
+
 static const size_t code_sz = sizeof(code_t) * 8;
 
 #define BIT_ISSET(n,b)	(((n) & (1 << (b))) != 0)
 
 void display_code(code_t code) {
-	for(size_t bit = 0; bit < code_sz; bit++) {
-		std::string bgcolor = ansi::bg(BIT_ISSET(code, bit) ? ansi::white : ansi::black);
+	for(size_t bit_n = 0; bit_n < code_sz; bit_n++) {
+		std::string bgcolor = ansi::bg(BIT_ISSET(code, bit_n) ? ansi::white : ansi::black);
 		std::cout << bgcolor << ' ';
 	}
 	std::cout << ansi::clear << std::endl;
 }
 
 static const size_t calibration_lines = 8;
-static const size_t calibration_columns = code_sz;
 
 bool rgb_equal(const rgb_t c1, const rgb_t c2) {
 	return c1[0] == c2[0] && c1[1] == c2[1] && c1[2] == c2[2];
 }
 
-void try_code(const pnm& snapshot, code_t code, size_t x0, size_t y, size_t dx) {
+bool try_code(const pnm& snapshot, code_t code, size_t x0, size_t y, size_t dx) {
 
-	const rgb_t *c1 = NULL;
-	const rgb_t *c2 = NULL;
+	const rgb_t *c[2] = { NULL, NULL };
 
-	for(size_t column = 0; column < calibration_columns; column++) {
+	for(size_t column = 0; column < code_sz; column++) {
 
 		size_t x = x0 + column * dx;
 
 		if(x >= snapshot.width)
-			break;
+			return false;
 
 		const rgb_t *pixel = snapshot.pixel(y, x);
 
-		if(c1 == NULL) {
-			c1 = pixel;
-		} else if(c2 == NULL && !rgb_equal(*c1, *pixel)) {
-			c2 = pixel;
+		int bit = BIT_ISSET(code, column);
 
+		if(c[bit] == NULL) {
+
+			c[bit] = pixel;
+
+			if(c[0] != NULL && c[1] != NULL && rgb_equal(*c[0], *c[1]))
+				return false;
+
+		} else if(!rgb_equal(*pixel, *c[bit])) { 
+			return false;
 		}
 	}
+
+	return true;
 }
 
-void find_code(const pnm& snapshot, code_t code) {
+bool find_code(const pnm& snapshot, size_t y0, code_t code, pos_t pos, size_t *tile_width) {
 
-	size_t max_font_width = snapshot.width / calibration_columns;
-	size_t max_font_height = snapshot.height / calibration_lines;
+	size_t max_tile_width = snapshot.width / code_sz;
 
-	std::cout << "maximum font character size : " << max_font_width << " X " << max_font_height << std::endl;
+	for(size_t dx = max_tile_width; dx > 0; dx--) {
 
-	for(size_t w = max_font_width; w > 0; w--) {
+		size_t tile_columns = snapshot.width / dx;
+		size_t x_offset = snapshot.width % dx;
 
-		size_t font_columns = snapshot.width / w;
-		size_t x_offset = snapshot.width % w;
+		for(size_t column = 0; column + code_sz - 1 < tile_columns; column++) {
 
-		for(size_t column = 0; column + calibration_columns - 1 < font_columns; column++) {
+			for(size_t y = y0; y < snapshot.height; y++) {
 
-			for(size_t y = 0; y + calibration_lines - 1 < snapshot.height; y++) {
+				size_t x0 = column * dx + x_offset;
 
-				try_code(snapshot, code, column * w + x_offset, y, w);
+				if(try_code(snapshot, code, x0, y, dx)) {
 
+
+					while(try_code(snapshot, code, x0 - 1, y, dx))
+						x0--;
+
+					pos[0] = x0;
+					pos[1] = y;
+
+					*tile_width = dx;
+
+					return true;
+				}
 			}
 		}
 	}
 
-
+	return false;
 }
 
 void display_calibration() {
@@ -273,19 +305,66 @@ void display_calibration() {
 
 }
 
+void process_tiles(const pnm& snapshot, const pos_t tile_origin, const pos_t tile_sz) {
+
+	printf("tile size : %dx%d origin : %d,%d\n",
+			(int)tile_sz[0],
+			(int)tile_sz[1],
+			(int)tile_origin[0],
+			(int)tile_origin[1]);
+
+	tiles tiles;
+
+	for(size_t tile_line = 0; tile_line < calibration_lines; tile_line++) {
+		for(size_t tile_column = 0; tile_column < code_sz; tile_column++) {
+
+			pos_t tile_pos = { tile_column * tile_sz[0] + tile_origin[0], tile_line * tile_sz[1] + tile_origin[1] };
+
+			tiles.push_back(tile(snapshot, tile_sz, tile_pos));
+		}
+	}
+
+	printf("total tiles = %d\n", (int)tiles.size());
+
+	for(tiles::const_iterator iter = tiles.begin(); iter != tiles.end(); iter++) {
+	}
+
+	// find colors
+	// find fonts
+	// calibrate
+	// output calibration configuration
+
+}
+
+
 void process_calibration() {
 
 	pnm snapshot(stdin);
 
 	if(snapshot.isloaded()) {
 
-		std::cout << "# loaded pnm " << snapshot.width << " X " << snapshot.height << std::endl;
-		find_code(snapshot, prefix_code);
-		find_code(snapshot, suffix_code);
-		// find colors
-		// find fonts
-		// calibrate
-		// output calibration configuration
+		pos_t prefix_pos;
+		pos_t suffix_pos;
+
+		size_t prefix_tile_width;
+		size_t suffix_tile_width;
+
+		if(	find_code(snapshot, 0, prefix_code, prefix_pos, &prefix_tile_width) &&
+			find_code(snapshot, prefix_pos[1] + 1, suffix_code, suffix_pos, &suffix_tile_width))
+		{
+
+			size_t hn = suffix_pos[1] - prefix_pos[1];
+
+			if(	(prefix_tile_width == suffix_tile_width) &&
+				(prefix_pos[0] == suffix_pos[0]) &&
+				(hn % (calibration_lines - 1) == 0))
+			{
+
+				pos_t tile_sz = { prefix_tile_width, hn / (calibration_lines - 1) };
+
+				process_tiles(snapshot, prefix_pos, tile_sz);
+			}
+		}
 	}
 }
 
