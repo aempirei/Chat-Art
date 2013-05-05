@@ -73,6 +73,59 @@ namespace ansi {
 	enum color_index { black, red, green, yellow, blue, magenta, cyan, white, first_color = black, last_color = white };
 }
 
+typedef uint8_t rgb_t[3];
+
+class pnm {
+	public:
+		pnm(FILE *fp);
+		~pnm();
+		bool isloaded();
+		size_t width = 0;
+		size_t height = 0;
+		rgb_t *data = NULL;
+		rgb_t *pixel(size_t row, size_t col);
+};
+
+pnm::pnm(FILE *fp) {
+
+	const unsigned int expected_mv = 255;
+
+	unsigned int w;
+	unsigned int h;
+	unsigned int mv;
+
+	if(fscanf(fp, "P6 %u %u %u", &w, &h, &mv) == 3) {
+
+		int ch = fgetc(fp);
+
+		if(isspace(ch) && mv == expected_mv) {
+
+			data = new rgb_t[w * h];
+
+			if(fread(data, sizeof(rgb_t), w * h, fp) == w * h) {
+				width = w;
+				height = h;
+			} else {
+				delete data;
+				data = NULL;
+			}
+		}
+	}
+}
+
+bool pnm::isloaded() {
+	return data != NULL && width > 0 && height > 0;
+}
+
+pnm::~pnm() {
+	if(data != NULL)
+		delete data;
+}
+
+rgb_t *pnm::pixel(size_t row, size_t col) {
+	return &data[row * width + col];
+}
+
 void help(const char *prog) {
 	std::cerr << "\nusage: " << prog << " [options]\n\n";
 	std::cerr << "either display the calibration pattern to save a snapshot of, or process a snapshot.\n";
@@ -86,84 +139,72 @@ void help(const char *prog) {
 	std::cerr << "report bugs to <aempirei@gmail.com>\n\n";
 }
 
-std::string pad(int n) {
-	std::stringstream ss;
-	ss << ansi::clear << ansi::bg(ansi::black) << std::setw(n) << ' ' << std::setw(0) << ansi::clear;
-	return ss.str();
-}
-std::string edge = pad(2);
+typedef uint32_t code_t;
 
-ints prefix_sequence = {5,4,1,7,4,5,5};
-ints suffix_sequence = {5,1,2,4,3};
+code_t prefix_code = 0xA55FACED;
+code_t suffix_code = 0x1DEADFED;
+size_t code_sz = sizeof(code_t) * 8;
 
-void display_code_sequence(const ints& preamble) {
-	
-	size_t pattern_sz = 10;
+#define BIT_ISSET(n,b)	(((n) & (1 << (b))) != 0)
 
-	for(ints::const_iterator iter = preamble.begin(); iter != preamble.end(); iter++)
-		pattern_sz += *iter;
-
-	std::cout << pad(pattern_sz) << std::endl;
-
-	std::cout << edge << ansi::bg(ansi::white) << std::setw(1) << ' ';
-
-	for(ints::const_iterator iter = preamble.begin(); iter != preamble.end(); iter++) {
-		std::cout << ansi::bg(ansi::black) << std::setw(*iter) << ' ';
-		std::cout << ansi::bg(ansi::white) << std::setw(1) << ' ';
+void display_code(code_t code) {
+	for(size_t bit = 0; bit < code_sz; bit++) {
+		std::string bgcolor = ansi::bg(BIT_ISSET(code, bit) ? ansi::white : ansi::black);
+		std::cout << bgcolor << ' ';
 	}
-	std::cout << edge << ansi::clear << std::endl;
-
-	std::cout << pad(pattern_sz) << ansi::clear << std::endl;
+	std::cout << ansi::clear << std::endl;
 }
+
+#undef BIT_ISSET
 
 void display_calibration() {
 
 	///////////
 	// preamble
 
-	display_code_sequence(prefix_sequence);
+	display_code(prefix_code);
 
 	///////
 	// font
 
-	std::cout << edge << ansi::bg(ansi::black) << "ABCDEFGHIJKLMNOPQRSTUVWXYZ" << edge << std::endl;
-	std::cout << edge << ansi::bg(ansi::black) << "abcdefghijklmnopqrstuvwxyz" << edge << std::endl;
-	std::cout << edge << ansi::bg(ansi::black) << "0123456789" << edge << std::endl;
+	std::cout << ansi::fg(ansi::white) << ansi::bg(ansi::black) ;
+
+	std::cout << "ABCDEFGHIJKLMNOPQRSTUVWXYZ" << std::endl;
+	std::cout << "abcdefghijklmnopqrstuvwxyz" << std::endl;
+	std::cout << "0123456789" << std::endl;
 
 	////////////////////
 	// background colors
 
-	std::cout << edge;
-
 	for(int i = ansi::first_color; i <= ansi::last_color; i++)
 		std::cout << ansi::bg(i) << ' ';
 
-	std::cout << edge << std::endl;
+	std::cout << std::endl;
 
 	////////////////////
 	// foreground colors
 
-	std::cout << edge << ansi::bg(ansi::black);
+	std::cout << ansi::bg(ansi::black);
 
 	for(int i = ansi::first_color; i <= ansi::last_color; i++)
 		std::cout << ansi::fg(i) << 'X';
 
-	std::cout << edge << std::endl;
+	std::cout << std::endl;
 
 	/////////////////////////
 	// bold foreground colors
 
-	std::cout << edge << ansi::bg(ansi::black);
+	std::cout << ansi::bg(ansi::black);
 
 	for(int i = ansi::first_color; i <= ansi::last_color; i++)
 		std::cout << ansi::bold << ansi::fg(i) << 'X';
 
-	std::cout << edge << std::endl;
+	std::cout << std::endl;
 
 	///////////
 	// preamble
 
-	display_code_sequence(suffix_sequence);
+	display_code(suffix_code);
 
 }
 
