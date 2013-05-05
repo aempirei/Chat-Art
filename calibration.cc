@@ -28,6 +28,13 @@
 #include <unistd.h>
 
 typedef std::list<int> ints;
+typedef uint8_t rgb_t[3];
+typedef size_t pos_t[2];
+typedef uint32_t code_t;
+
+///////
+// ANSI
+///////
 
 namespace ansi {
 
@@ -73,22 +80,21 @@ namespace ansi {
 	enum color_index { black, red, green, yellow, blue, magenta, cyan, white, first_color = black, last_color = white };
 }
 
-typedef uint8_t rgb_t[3];
-typedef size_t pos_t[2];
-typedef uint32_t code_t;
+//////
+// PNM
+//////
 
-class pnm {
-	public:
-		size_t width = 0;
-		size_t height = 0;
-		rgb_t *data = NULL;
+struct pnm {
+	size_t width = 0;
+	size_t height = 0;
+	rgb_t *data = NULL;
 
-		pnm(FILE *fp);
-		~pnm();
+	pnm(FILE *fp);
+	~pnm();
 
-		bool isloaded();
-		rgb_t *pixel(size_t line, size_t column);
-		const rgb_t *pixel(size_t line, size_t column) const;
+	bool isloaded();
+	rgb_t *pixel(size_t line, size_t column);
+	const rgb_t *pixel(size_t line, size_t column) const;
 };
 
 pnm::pnm(FILE *fp) {
@@ -135,11 +141,15 @@ const rgb_t *pnm::pixel(size_t line, size_t column) const {
 	return &data[line * width + column];
 }
 
+///////
+// TILE
+///////
+
 struct tile {
-		const pnm& source;
-		pos_t size;
-		pos_t position;
-		tile(const pnm& source, const pos_t tile_sz, const pos_t tile_pos);
+	const pnm& source;
+	pos_t size;
+	pos_t position;
+	tile(const pnm& source, const pos_t tile_sz, const pos_t tile_pos);
 };
 
 tile::tile(const pnm& source, const pos_t tile_sz, const pos_t tile_pos) : source(source) {
