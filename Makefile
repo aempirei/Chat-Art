@@ -1,7 +1,7 @@
 CC = gcc
 CXX = g++
-CFLAGS = -Wall -W -pedantic -std=gnu99
-CXXFLAGS = -Wall -W -pedantic -std=gnu++11
+CFLAGS = -Wall -W -pedantic -std=gnu99 -O2
+CXXFLAGS = -Wall -W -pedantic -std=gnu++11 -O2
 CPPFLAGS = -I.
 LIBFLAGS =
 PROGRAMS = auto.calibration.cc auto.pgmtobraile.c auto.pgmtobrailedux.c

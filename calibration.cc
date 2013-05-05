@@ -77,13 +77,16 @@ typedef uint8_t rgb_t[3];
 
 class pnm {
 	public:
-		pnm(FILE *fp);
-		~pnm();
-		bool isloaded();
 		size_t width = 0;
 		size_t height = 0;
 		rgb_t *data = NULL;
-		rgb_t *pixel(size_t row, size_t col);
+
+		pnm(FILE *fp);
+		~pnm();
+
+		bool isloaded();
+		rgb_t *pixel(size_t line, size_t column);
+		const rgb_t *pixel(size_t line, size_t column) const;
 };
 
 pnm::pnm(FILE *fp) {
@@ -122,9 +125,14 @@ pnm::~pnm() {
 		delete data;
 }
 
-rgb_t *pnm::pixel(size_t row, size_t col) {
-	return &data[row * width + col];
+rgb_t *pnm::pixel(size_t line, size_t column) {
+	return &data[line * width + column];
 }
+
+const rgb_t *pnm::pixel(size_t line, size_t column) const {
+	return &data[line * width + column];
+}
+
 
 void help(const char *prog) {
 	std::cerr << "\nusage: " << prog << " [options]\n\n";
@@ -158,13 +166,38 @@ void display_code(code_t code) {
 static const size_t calibration_lines = 8;
 static const size_t calibration_columns = code_sz;
 
-void try_code(const pnm& snapshot, code_t code, size_t x, size_t y, size_t w, size_t h) {
+bool rgb_equal(const rgb_t c1, const rgb_t c2) {
+	return c1[0] == c2[0] && c1[1] == c2[1] && c1[2] == c2[2];
+}
+
+void try_code(const pnm& snapshot, code_t code, size_t x0, size_t y, size_t dx) {
+
+	const rgb_t *c1 = NULL;
+	const rgb_t *c2 = NULL;
+
+	for(size_t column = 0; column < calibration_columns; column++) {
+
+		size_t x = x0 + column * dx;
+
+		if(x >= snapshot.width)
+			break;
+
+		const rgb_t *pixel = snapshot.pixel(y, x);
+
+		if(c1 == NULL) {
+			c1 = pixel;
+		} else if(c2 == NULL && !rgb_equal(*c1, *pixel)) {
+			c2 = pixel;
+
+		}
+	}
 }
 
 void find_code(const pnm& snapshot, code_t code) {
+
 	size_t max_font_width = snapshot.width / calibration_columns;
 	size_t max_font_height = snapshot.height / calibration_lines;
-	
+
 	std::cout << "maximum font character size : " << max_font_width << " X " << max_font_height << std::endl;
 
 	for(size_t w = max_font_width; w > 0; w--) {
@@ -172,26 +205,18 @@ void find_code(const pnm& snapshot, code_t code) {
 		size_t font_columns = snapshot.width / w;
 		size_t x_offset = snapshot.width % w;
 
-		for(size_t h = max_font_height; h > 0; h--) {
+		for(size_t column = 0; column + calibration_columns - 1 < font_columns; column++) {
 
-			size_t font_lines = snapshot.height / h;
-			size_t y_offset = snapshot.height % h;
+			for(size_t y = 0; y + calibration_lines - 1 < snapshot.height; y++) {
 
-			for(size_t column = 0; column + calibration_columns - 1 < font_columns; column++) {
-				for(size_t line = 0; line + calibration_lines - 1 < font_lines; line++) {
+				try_code(snapshot, code, column * w + x_offset, y, w);
 
-					std::cout << "w: " << w << " h: " << h << " c: " << column << " l: " << line;
-					std::cout << " dx: " << x_offset << " dy: " << y_offset << std::endl;
-
-				}
 			}
 		}
 	}
 
 
 }
-
-#undef BIT_ISSET
 
 void display_calibration() {
 
