@@ -168,7 +168,23 @@ void find_code(const pnm& snapshot, code_t code) {
 	std::cout << "maximum font character size : " << max_font_width << " X " << max_font_height << std::endl;
 
 	for(size_t w = max_font_width; w > 0; w--) {
+
+		size_t font_columns = snapshot.width / w;
+		size_t x_offset = snapshot.width % w;
+
 		for(size_t h = max_font_height; h > 0; h--) {
+
+			size_t font_lines = snapshot.height / h;
+			size_t y_offset = snapshot.height % h;
+
+			for(size_t column = 0; column + calibration_columns - 1 < font_columns; column++) {
+				for(size_t line = 0; line + calibration_lines - 1 < font_lines; line++) {
+
+					std::cout << "w: " << w << " h: " << h << " c: " << column << " l: " << line;
+					std::cout << " dx: " << x_offset << " dy: " << y_offset << std::endl;
+
+				}
+			}
 		}
 	}
 
