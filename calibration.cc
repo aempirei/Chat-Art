@@ -345,6 +345,9 @@ void process_tiles(const pnm& snapshot, const pos_t origin, const pos_t size) {
 	assign_tiles(lowercase_tiles, 5);
 	assign_tiles(number_tiles, 6);
 
+	// get background colors
+	// get 
+
 	for(size_t j = 0; j < fg_tiles.size(); j++) {
 		const tile& bg_tile = fg_tiles[j];
 		rgb_t& v = *bg_tile.pixel(0,0);
