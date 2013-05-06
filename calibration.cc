@@ -8,24 +8,21 @@
 // git: git@github.com:aempirei/Chat-Art.git
 // aim: ambientempire
 
-#include <map>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string>
 #include <string.h>
-#include <algorithm>
-#include <ios>
-#include <map>
-#include <deque>
-#include <sstream>
-#include <iostream>
-#include <iomanip>
-#include <list>
-#include <set>
 #include <math.h>
 #include <stdint.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#include <string>
+#include <ios>
+#include <sstream>
+#include <iostream>
+#include <iomanip>
+#include <list>
+#include <vector>
 
 typedef std::list<int> ints;
 typedef size_t pos_t[2];
@@ -101,8 +98,7 @@ struct pnm {
 	~pnm();
 
 	bool isloaded();
-	rgb_t *pixel(size_t line, size_t column);
-	const rgb_t *pixel(size_t line, size_t column) const;
+	rgb_t *pixel(size_t y, size_t x) const;
 };
 
 pnm::pnm(FILE *fp) {
@@ -141,12 +137,8 @@ pnm::~pnm() {
 		delete data;
 }
 
-rgb_t *pnm::pixel(size_t line, size_t column) {
-	return &data[line * width + column];
-}
-
-const rgb_t *pnm::pixel(size_t line, size_t column) const {
-	return &data[line * width + column];
+rgb_t *pnm::pixel(size_t y, size_t x) const {
+	return &data[y * width + x];
 }
 
 ///////
@@ -154,18 +146,72 @@ const rgb_t *pnm::pixel(size_t line, size_t column) const {
 ///////
 
 struct tile {
+
 	const pnm& source;
+
 	pos_t size;
-	pos_t position;
-	tile(const pnm& source, const pos_t tile_sz, const pos_t tile_pos);
+	pos_t pos;
+
+	tile(const pnm& source, const pos_t size, const pos_t pos);
+	tile(const pnm& source, size_t line, size_t column, const pos_t size, const pos_t origin);
+	tile(const pnm& source);
+
+	const pos_t& move(ssize_t lines, ssize_t columns);
+
+	const rgb_t& mean(rgb_t& v) const;
+	const rgb_t& sum(rgb_t& v) const;
+	const rgb_t& var(rgb_t& v) const;
+
+	rgb_t *pixel(size_t y, size_t x) const;
+
+	static const pos_t& position(pos_t& xy, size_t line, size_t column, const pos_t size, const pos_t origin);
 };
 
-tile::tile(const pnm& source, const pos_t tile_sz, const pos_t tile_pos) : source(source) {
-	memcpy(size, tile_sz, sizeof(pos_t));
-	memcpy(position, tile_pos, sizeof(pos_t));
+tile::tile(const pnm& source) : source(source) {
 }
 
-typedef std::list<tile> tiles;
+tile::tile(const pnm& source, const pos_t size, const pos_t pos) : source(source) {
+	memcpy(this->size, size, sizeof(pos_t));
+	memcpy(this->pos, pos, sizeof(pos_t));
+}
+
+tile::tile(const pnm& source, size_t line, size_t column, const pos_t size, const pos_t origin) : source(source) {
+	memcpy(this->size, size, sizeof(pos_t));
+	tile::position(this->pos, line, column, size, origin);
+}
+
+const pos_t& tile::position(pos_t& xy, size_t line, size_t column, const pos_t size, const pos_t origin) {
+	xy[0] =  column * size[0] + origin[0];
+	xy[1] =  line * size[1] + origin[1];
+	return xy;
+}
+const pos_t& tile::move(ssize_t lines, ssize_t columns) {
+	pos[1] += lines * size[1];
+	pos[0] += columns * size[0];
+	return pos;
+}
+
+const rgb_t& tile::mean(rgb_t& v) const {
+	return v;
+}
+
+const rgb_t& tile::sum(rgb_t& v) const {
+	for(size_t j = 0; j < sizeof(rgb_t); j++) {
+		v[j] = 0;
+		
+	}
+	return v;
+}
+
+const rgb_t& tile::var(rgb_t& v) const {
+	return v;
+}
+
+rgb_t *tile::pixel(size_t y, size_t x) const {
+	return source.pixel(pos[1] + y, pos[0] + x);
+}
+
+typedef std::vector<tile> tiles;
 
 ///////
 // CODE
@@ -251,29 +297,53 @@ bool find_code(const pnm& snapshot, size_t y0, code_t code, pos_t pos, size_t *t
 // PROCESS
 //////////
 
-void process_tiles(const pnm& snapshot, const pos_t tile_origin, const pos_t tile_sz) {
+const tiles& assign_tiles(tiles& tiles, size_t line) {
 
-	tiles tiles;
+	for(size_t column = 0; column < tiles.size(); column++)
+		tiles[column].move(line, column);
 
-	for(size_t tile_line = 0; tile_line < calibration_lines; tile_line++) {
-		for(size_t tile_column = 0; tile_column < code_sz; tile_column++) {
+	return tiles;
+}
 
-			pos_t tile_pos = { tile_column * tile_sz[0] + tile_origin[0], tile_line * tile_sz[1] + tile_origin[1] };
+void process_tiles(const pnm& snapshot, const pos_t origin, const pos_t size) {
 
-			tiles.push_back(tile(snapshot, tile_sz, tile_pos));
-		}
-	}
+	/////////////////////////////////////////////
+	// calibration text is 8 lines and 32 columns
+	/////////////////////////////////////////////
+	// 1.08 background colors
+	// 2.08 foreground colors
+	// 3.08 bold foreground colors
+	// 4.26 uppercase alphabet
+	// 5.26 lowercase alphabet
+	// 6.10 numbers
 
-	for(tiles::const_iterator iter = tiles.begin(); iter != tiles.end(); iter++) {
-		// find colors
-		// find fonts
-		// calibrate
+	tile base(snapshot, size, origin);
 
+	tiles bg_tiles(8, base);
+	tiles fg_tiles(8, base);
+	tiles bold_tiles(8, base);
+	tiles uppercase_tiles(26, base);
+	tiles lowercase_tiles(26, base);
+	tiles number_tiles(10, base);
+
+	assign_tiles(bg_tiles, 1);
+	assign_tiles(fg_tiles, 2);
+	assign_tiles(bold_tiles, 3);
+	assign_tiles(uppercase_tiles, 4);
+	assign_tiles(lowercase_tiles, 5);
+	assign_tiles(number_tiles, 6);
+
+	for(size_t j = 0; j < bg_tiles.size(); j++) {
+		const tile& bg_tile = bg_tiles[j];
+		rgb_t& v = *bg_tile.pixel(0,0);
+		const pos_t& p = bg_tile.pos;
+		rgb_t mu;
+		printf("bg %d => %02x%02x%02x @ %d,%d\n", (int)j, v[0], v[1], v[2], (int)p[0], (int)p[1]);
 	}
 
 	// output calibration configuration
 
-	printf("%lu tiles %lux%lupx @ (%lu,%lu)\n", tiles.size(), tile_sz[0],tile_sz[1],tile_origin[0],tile_origin[1]);
+	// printf("%lu tiles %lux%lupx @ (%lu,%lu)\n", tiles.size(), tile_sz[0],tile_sz[1],origin[0],origin[1]);
 }
 
 void process_calibration() {
@@ -322,23 +392,22 @@ void display_code(code_t code) {
 
 void display_calibration() {
 
-	//
+	/////////////////////////////////////////////
 	// calibration text is 8 lines and 32 columns
-	//
+	/////////////////////////////////////////////
+	// 0.32 prefix code
+	// 1.08 background colors
+	// 2.08 foreground colors
+	// 3.08 bold foreground colors
+	// 4.26 uppercase alphabet
+	// 5.26 lowercase alphabet
+	// 6.10 numbers
+	// 7.32 suffix code
 
-	///////////
-	// preamble
+	//////////////
+	// prefix code
 
 	display_code(prefix_code);
-
-	///////
-	// font
-
-	std::cout << ansi::fg(ansi::white) << ansi::bg(ansi::black);
-
-	std::cout << "ABCDEFGHIJKLMNOPQRSTUVWXYZ" << std::endl;
-	std::cout << "abcdefghijklmnopqrstuvwxyz" << std::endl;
-	std::cout << "0123456789" << std::endl;
 
 	////////////////////
 	// background colors
@@ -368,8 +437,17 @@ void display_calibration() {
 
 	std::cout << std::endl;
 
-	///////////
-	// preamble
+	///////
+	// font
+
+	std::cout << ansi::fg(ansi::white) << ansi::bg(ansi::black);
+
+	std::cout << "ABCDEFGHIJKLMNOPQRSTUVWXYZ" << std::endl;
+	std::cout << "abcdefghijklmnopqrstuvwxyz" << std::endl;
+	std::cout << "0123456789" << std::endl;
+
+	//////////////
+	// suffix code
 
 	display_code(suffix_code);
 
