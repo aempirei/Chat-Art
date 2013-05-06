@@ -80,6 +80,7 @@ namespace ansi {
 //////
 
 typedef uint8_t rgb_t[3];
+typedef uint32_t rgb_sum_t[3];
 
 bool rgb_equal(const rgb_t c1, const rgb_t c2) {
 	return c1[0] == c2[0] && c1[1] == c2[1] && c1[2] == c2[2];
@@ -159,10 +160,11 @@ struct tile {
 	const pos_t& move(ssize_t lines, ssize_t columns);
 
 	const rgb_t& mean(rgb_t& v) const;
-	const rgb_t& sum(rgb_t& v) const;
-	const rgb_t& var(rgb_t& v) const;
+	const rgb_sum_t& sum(rgb_sum_t& v) const;
 
 	rgb_t *pixel(size_t y, size_t x) const;
+
+	size_t n() const;
 
 	static const pos_t& position(pos_t& xy, size_t line, size_t column, const pos_t size, const pos_t origin);
 };
@@ -192,23 +194,33 @@ const pos_t& tile::move(ssize_t lines, ssize_t columns) {
 }
 
 const rgb_t& tile::mean(rgb_t& v) const {
+	rgb_sum_t vs;
+	sum(vs);
+	v[0] = (uint8_t)(vs[0] / n());
+	v[1] = (uint8_t)(vs[1] / n());
+	v[2] = (uint8_t)(vs[2] / n());
 	return v;
 }
 
-const rgb_t& tile::sum(rgb_t& v) const {
-	for(size_t j = 0; j < sizeof(rgb_t); j++) {
-		v[j] = 0;
-		
+const rgb_sum_t& tile::sum(rgb_sum_t& v) const {
+	v[0] = v[1] = v[2] = 0;
+	for(size_t y = 0; y < size[1]; y++) {
+		for(size_t x = 0; x < size[0]; x++) {
+			const rgb_t& w = *pixel(y,x);
+			v[0] += w[0];
+			v[1] += w[1];
+			v[2] += w[2];
+		}
 	}
-	return v;
-}
-
-const rgb_t& tile::var(rgb_t& v) const {
 	return v;
 }
 
 rgb_t *tile::pixel(size_t y, size_t x) const {
 	return source.pixel(pos[1] + y, pos[0] + x);
+}
+
+size_t tile::n() const {
+	return size[0] * size[1];
 }
 
 typedef std::vector<tile> tiles;
@@ -333,12 +345,17 @@ void process_tiles(const pnm& snapshot, const pos_t origin, const pos_t size) {
 	assign_tiles(lowercase_tiles, 5);
 	assign_tiles(number_tiles, 6);
 
-	for(size_t j = 0; j < bg_tiles.size(); j++) {
-		const tile& bg_tile = bg_tiles[j];
+	for(size_t j = 0; j < fg_tiles.size(); j++) {
+		const tile& bg_tile = fg_tiles[j];
 		rgb_t& v = *bg_tile.pixel(0,0);
 		const pos_t& p = bg_tile.pos;
 		rgb_t mu;
-		printf("bg %d => %02x%02x%02x @ %d,%d\n", (int)j, v[0], v[1], v[2], (int)p[0], (int)p[1]);
+		bg_tile.mean(mu);
+		printf("bg %d => #%02x%02x%02x mu #%02x%02x%02x @ %d,%d\n", 
+				(int)j, 
+				v[0], v[1], v[2], 
+				mu[0], mu[1], mu[2], 
+				(int)p[0], (int)p[1]);
 	}
 
 	// output calibration configuration
