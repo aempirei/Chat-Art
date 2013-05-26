@@ -22,6 +22,7 @@
 #include <iostream>
 #include <iomanip>
 #include <list>
+#include <map>
 #include <vector>
 
 typedef std::list<int> ints;
@@ -81,8 +82,13 @@ namespace ansi {
 
 typedef uint8_t rgb_t[3];
 typedef uint32_t rgb_sum_t[3];
+typedef std::map<uint32_t, long> histogram;
 
-bool rgb_equal(const rgb_t c1, const rgb_t c2) {
+static uint32_t rgbtou32(const rgb_t v) {
+	return ((uint32_t)v[0]<<16) | ((uint32_t)v[1]<<8) | (uint32_t)v[2];
+}
+
+static bool rgb_equal(const rgb_t c1, const rgb_t c2) {
 	return c1[0] == c2[0] && c1[1] == c2[1] && c1[2] == c2[2];
 }
 
@@ -153,6 +159,8 @@ struct tile {
 	pos_t size;
 	pos_t pos;
 
+	rgb_sum_t color = { 0 };
+
 	tile(const pnm& source, const pos_t size, const pos_t pos);
 	tile(const pnm& source, size_t line, size_t column, const pos_t size, const pos_t origin);
 	tile(const pnm& source);
@@ -160,12 +168,14 @@ struct tile {
 	const pos_t& move(ssize_t lines, ssize_t columns);
 
 	const rgb_t& mean(rgb_t& v) const;
+	const rgb_t& mode(rgb_t& v) const;
 	const rgb_sum_t& sum(rgb_sum_t& v) const;
 
 	rgb_t *pixel(size_t y, size_t x) const;
+	rgb_t &at(size_t y, size_t x) const;
 
 	size_t n() const;
-
+	
 	static const pos_t& position(pos_t& xy, size_t line, size_t column, const pos_t size, const pos_t origin);
 };
 
@@ -180,12 +190,6 @@ tile::tile(const pnm& source, const pos_t size, const pos_t pos) : source(source
 tile::tile(const pnm& source, size_t line, size_t column, const pos_t size, const pos_t origin) : source(source) {
 	memcpy(this->size, size, sizeof(pos_t));
 	tile::position(this->pos, line, column, size, origin);
-}
-
-const pos_t& tile::position(pos_t& xy, size_t line, size_t column, const pos_t size, const pos_t origin) {
-	xy[0] =  column * size[0] + origin[0];
-	xy[1] =  line * size[1] + origin[1];
-	return xy;
 }
 const pos_t& tile::move(ssize_t lines, ssize_t columns) {
 	pos[1] += lines * size[1];
@@ -202,16 +206,35 @@ const rgb_t& tile::mean(rgb_t& v) const {
 	return v;
 }
 
-const rgb_sum_t& tile::sum(rgb_sum_t& v) const {
-	v[0] = v[1] = v[2] = 0;
+const rgb_t& tile::mode(rgb_t& v) const {
+
+	histogram h;
+
 	for(size_t y = 0; y < size[1]; y++) {
 		for(size_t x = 0; x < size[0]; x++) {
+			uint32_t rgb32 = rgbtou32(*pixel(y,x));
+			h[rgb32]++;
+		}
+	}
+
+	return v;
+}
+
+const rgb_sum_t& tile::sum(rgb_sum_t& v) const {
+
+	v[0] = v[1] = v[2] = 0;
+
+	for(size_t y = 0; y < size[1]; y++) {
+		for(size_t x = 0; x < size[0]; x++) {
+
 			const rgb_t& w = *pixel(y,x);
+
 			v[0] += w[0];
 			v[1] += w[1];
 			v[2] += w[2];
 		}
 	}
+
 	return v;
 }
 
@@ -219,8 +242,19 @@ rgb_t *tile::pixel(size_t y, size_t x) const {
 	return source.pixel(pos[1] + y, pos[0] + x);
 }
 
+rgb_t &tile::at(size_t y, size_t x) const {
+	return *source.pixel(pos[1] + y, pos[0] + x);
+}
+
+
 size_t tile::n() const {
 	return size[0] * size[1];
+}
+
+const pos_t& tile::position(pos_t& xy, size_t line, size_t column, const pos_t size, const pos_t origin) {
+	xy[0] = column * size[0] + origin[0];
+	xy[1] = line * size[1] + origin[1];
+	return xy;
 }
 
 typedef std::vector<tile> tiles;
@@ -287,7 +321,6 @@ bool find_code(const pnm& snapshot, size_t y0, code_t code, pos_t pos, size_t *t
 
 				if(try_code(snapshot, code, x0, y, dx)) {
 
-
 					while(try_code(snapshot, code, x0 - 1, y, dx))
 						x0--;
 
@@ -309,15 +342,25 @@ bool find_code(const pnm& snapshot, size_t y0, code_t code, pos_t pos, size_t *t
 // PROCESS
 //////////
 
+void print_tile(const tile& t) {
+	printf("#%02x %02x %02x / %d @ %d,%d\n", (int)t.color[0], (int)t.color[1], (int)t.color[2], (int)t.n(), (int)t.pos[0], (int)t.pos[1]);
+}
+
 const tiles& assign_tiles(tiles& tiles, size_t line) {
 
-	for(size_t column = 0; column < tiles.size(); column++)
-		tiles[column].move(line, column);
+	for(size_t column = 0; column < tiles.size(); column++) {
+		tile& t = tiles[column];
+		t.move(line, column);
+		t.sum(t.color);
+		print_tile(t);
+	}
+
+	putchar('\n');
 
 	return tiles;
 }
 
-void process_tiles(const pnm& snapshot, const pos_t origin, const pos_t size) {
+void process_tiles(const pnm& snapshot, const pos_t size, const pos_t origin) {
 
 	/////////////////////////////////////////////
 	// calibration text is 8 lines and 32 columns
@@ -344,26 +387,6 @@ void process_tiles(const pnm& snapshot, const pos_t origin, const pos_t size) {
 	assign_tiles(uppercase_tiles, 4);
 	assign_tiles(lowercase_tiles, 5);
 	assign_tiles(number_tiles, 6);
-
-	// get background colors
-	// get 
-
-	for(size_t j = 0; j < fg_tiles.size(); j++) {
-		const tile& bg_tile = fg_tiles[j];
-		rgb_t& v = *bg_tile.pixel(0,0);
-		const pos_t& p = bg_tile.pos;
-		rgb_t mu;
-		bg_tile.mean(mu);
-		printf("bg %d => #%02x%02x%02x mu #%02x%02x%02x @ %d,%d\n", 
-				(int)j, 
-				v[0], v[1], v[2], 
-				mu[0], mu[1], mu[2], 
-				(int)p[0], (int)p[1]);
-	}
-
-	// output calibration configuration
-
-	// printf("%lu tiles %lux%lupx @ (%lu,%lu)\n", tiles.size(), tile_sz[0],tile_sz[1],origin[0],origin[1]);
 }
 
 void process_calibration() {
@@ -391,7 +414,7 @@ void process_calibration() {
 
 				pos_t tile_sz = { prefix_tile_width, hn / (calibration_lines - 1) };
 
-				process_tiles(snapshot, prefix_pos, tile_sz);
+				process_tiles(snapshot, tile_sz, prefix_pos);
 			}
 		}
 	}
