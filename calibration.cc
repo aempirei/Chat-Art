@@ -81,16 +81,17 @@ namespace ansi {
 //////
 
 typedef uint8_t rgb_t[3];
-typedef uint32_t rgb_sum_t[3];
-typedef std::map<uint32_t, long> histogram;
+typedef int32_t rgb_sum_t[3];
+typedef std::map<int32_t, long> histogram;
 
-static uint32_t rgbtou32(const rgb_t v) {
-	return ((uint32_t)v[0]<<16) | ((uint32_t)v[1]<<8) | (uint32_t)v[2];
-}
-
-static bool rgb_equal(const rgb_t c1, const rgb_t c2) {
-	return c1[0] == c2[0] && c1[1] == c2[1] && c1[2] == c2[2];
-}
+struct rgb {
+	constexpr static uint32_t tou32(const rgb_t v) {
+		return ((uint32_t)v[0]<<16) | ((uint32_t)v[1]<<8) | (uint32_t)v[2];
+	}
+	constexpr static bool equals(const rgb_t c1, const rgb_t c2) {
+		return c1[0] == c2[0] && c1[1] == c2[1] && c1[2] == c2[2];
+	}
+};
 
 //////
 // PNM
@@ -104,7 +105,8 @@ struct pnm {
 	pnm(FILE *fp);
 	~pnm();
 
-	bool isloaded();
+	bool free();
+	bool isloaded() const;
 	rgb_t *pixel(size_t y, size_t x) const;
 };
 
@@ -128,20 +130,27 @@ pnm::pnm(FILE *fp) {
 				width = w;
 				height = h;
 			} else {
-				delete data;
-				data = NULL;
+				free();
 			}
 		}
 	}
 }
 
-bool pnm::isloaded() {
+bool pnm::isloaded() const {
 	return data != NULL && width > 0 && height > 0;
 }
 
-pnm::~pnm() {
-	if(data != NULL)
+bool pnm::free() {
+	if(data != NULL) {
 		delete data;
+		data = NULL;
+		return true;
+	}
+	return false;
+}
+
+pnm::~pnm() {
+	free();
 }
 
 rgb_t *pnm::pixel(size_t y, size_t x) const {
@@ -159,22 +168,30 @@ struct tile {
 	pos_t size;
 	pos_t pos;
 
-	rgb_sum_t color = { 0 };
+	rgb_sum_t rgb_mean;
+	rgb_sum_t rgb_sum;
+	rgb_sum_t rgb_stdev;
 
+	rgb_sum_t color;
+
+	size_t ratio;
+	
 	tile(const pnm& source, const pos_t size, const pos_t pos);
 	tile(const pnm& source, size_t line, size_t column, const pos_t size, const pos_t origin);
 	tile(const pnm& source);
 
 	const pos_t& move(ssize_t lines, ssize_t columns);
+	const pos_t& move(ssize_t lines, ssize_t columns, const tile& mask);
 
-	const rgb_t& mean(rgb_t& v) const;
-	const rgb_t& mode(rgb_t& v) const;
+	const rgb_sum_t& stdev(rgb_sum_t& v) const;
+	const rgb_sum_t& mean(rgb_sum_t& v) const;
 	const rgb_sum_t& sum(rgb_sum_t& v) const;
 
 	rgb_t *pixel(size_t y, size_t x) const;
-	rgb_t &at(size_t y, size_t x) const;
 
 	size_t n() const;
+
+	std::string to_string();
 	
 	static const pos_t& position(pos_t& xy, size_t line, size_t column, const pos_t size, const pos_t origin);
 };
@@ -194,31 +211,72 @@ tile::tile(const pnm& source, size_t line, size_t column, const pos_t size, cons
 const pos_t& tile::move(ssize_t lines, ssize_t columns) {
 	pos[1] += lines * size[1];
 	pos[0] += columns * size[0];
+	sum(rgb_sum);
+	mean(rgb_mean);
+	stdev(rgb_stdev);
+	ratio = n();
+	sum(color);
 	return pos;
 }
 
-const rgb_t& tile::mean(rgb_t& v) const {
-	rgb_sum_t vs;
-	sum(vs);
-	v[0] = (uint8_t)(vs[0] / n());
-	v[1] = (uint8_t)(vs[1] / n());
-	v[2] = (uint8_t)(vs[2] / n());
-	return v;
-}
+const pos_t& tile::move(ssize_t lines, ssize_t columns, const tile& mask) {
 
-const rgb_t& tile::mode(rgb_t& v) const {
+	move(lines, columns);
 
-	histogram h;
+	ratio = 0;
+
+	color[0] = color[1] = color[2] = 0;
 
 	for(size_t y = 0; y < size[1]; y++) {
 		for(size_t x = 0; x < size[0]; x++) {
-			uint32_t rgb32 = rgbtou32(*pixel(y,x));
-			h[rgb32]++;
+
+			const rgb_t& w = *pixel(y,x);
+
+			if(	!rgb::equals(w, *mask.pixel(y,x)) &&
+					w[0] >= (rgb_mean[0] - rgb_stdev[0]) &&
+					w[1] >= (rgb_mean[1] - rgb_stdev[1]) &&
+					w[2] >= (rgb_mean[2] - rgb_stdev[2]))
+			{
+				ratio++;
+				for(int i = 0; i < 3; i++)
+					color[i] += w[i];
+			}
 		}
 	}
 
+	return pos;
+}
+
+const rgb_sum_t& tile::mean(rgb_sum_t& v) const {
+
+	for(int i = 0; i < 3; i++)
+		v[i] = rgb_sum[i] / n();
+
 	return v;
 }
+
+const rgb_sum_t& tile::stdev(rgb_sum_t& v) const {
+
+	v[0] = v[1] = v[2] = 0;
+
+	for(size_t y = 0; y < size[1]; y++) {
+		for(size_t x = 0; x < size[0]; x++) {
+
+			const rgb_t& w = *pixel(y,x);
+
+			for(int i = 0; i < 3; i++) {
+				int32_t xx = w[i] - rgb_mean[i];
+				v[i] += xx * xx;
+			}
+		}
+	}
+
+	for(int i = 0; i < 3; i++)
+		v[i] = (int32_t)rint(sqrt((double)v[i] / n()));
+
+	return v;
+}
+
 
 const rgb_sum_t& tile::sum(rgb_sum_t& v) const {
 
@@ -229,9 +287,8 @@ const rgb_sum_t& tile::sum(rgb_sum_t& v) const {
 
 			const rgb_t& w = *pixel(y,x);
 
-			v[0] += w[0];
-			v[1] += w[1];
-			v[2] += w[2];
+			for(int i = 0; i < 3; i++)
+				v[i] += w[i];
 		}
 	}
 
@@ -242,13 +299,27 @@ rgb_t *tile::pixel(size_t y, size_t x) const {
 	return source.pixel(pos[1] + y, pos[0] + x);
 }
 
-rgb_t &tile::at(size_t y, size_t x) const {
-	return *source.pixel(pos[1] + y, pos[0] + x);
-}
-
-
 size_t tile::n() const {
 	return size[0] * size[1];
+}
+
+std::string tile::to_string() {
+
+	char buffer[128];
+
+	snprintf(buffer, sizeof(buffer), "#%02x%02x%02x / %3d:%-3d @ %3d,%-3d %3d~%-3d %3d~%-3d %3d~%-3d / #%02x%02x%02x",
+			(int)rgb_mean[0], (int)rgb_mean[1], (int)rgb_mean[2],
+			(int)ratio, (int)n(),
+			(int)pos[0], (int)pos[1],
+			(int)rgb_mean[0], (int)rgb_stdev[0],
+			(int)rgb_mean[1], (int)rgb_stdev[1],
+			(int)rgb_mean[2], (int)rgb_stdev[2],
+			(int)(ratio ? (color[0] / ratio) : 0),
+			(int)(ratio ? (color[1] / ratio) : 0),
+			(int)(ratio ? (color[2] / ratio) : 0)
+	);
+
+	return std::string(buffer);
 }
 
 const pos_t& tile::position(pos_t& xy, size_t line, size_t column, const pos_t size, const pos_t origin) {
@@ -293,10 +364,10 @@ bool try_code(const pnm& snapshot, code_t code, size_t x0, size_t y, size_t dx) 
 
 			c[bit] = pixel;
 
-			if(c[0] != NULL && c[1] != NULL && rgb_equal(*c[0], *c[1]))
+			if(c[0] != NULL && c[1] != NULL && rgb::equals(*c[0], *c[1]))
 				return false;
 
-		} else if(!rgb_equal(*pixel, *c[bit])) { 
+		} else if(!rgb::equals(*pixel, *c[bit])) { 
 			return false;
 		}
 	}
@@ -342,23 +413,28 @@ bool find_code(const pnm& snapshot, size_t y0, code_t code, pos_t pos, size_t *t
 // PROCESS
 //////////
 
-void print_tile(const tile& t) {
-	printf("#%02x %02x %02x / %d @ %d,%d\n", (int)t.color[0], (int)t.color[1], (int)t.color[2], (int)t.n(), (int)t.pos[0], (int)t.pos[1]);
-}
-
-const tiles& assign_tiles(tiles& tiles, size_t line) {
+void assign_solid_tiles(tiles& tiles, size_t line, bool print=false) {
 
 	for(size_t column = 0; column < tiles.size(); column++) {
 		tile& t = tiles[column];
 		t.move(line, column);
-		t.sum(t.color);
-		print_tile(t);
+		if(print)
+			printf("%s\n", t.to_string().c_str());
 	}
-
 	putchar('\n');
-
-	return tiles;
 }
+
+void assign_tiles(tiles& tiles, size_t line, const tile& mask, bool print=false) {
+
+	for(size_t column = 0; column < tiles.size(); column++) {
+		tile& t = tiles[column];
+		t.move(line, column, mask);
+		if(print)
+			printf("%s\n", t.to_string().c_str());
+	}
+	putchar('\n');
+}
+
 
 void process_tiles(const pnm& snapshot, const pos_t size, const pos_t origin) {
 
@@ -371,12 +447,15 @@ void process_tiles(const pnm& snapshot, const pos_t size, const pos_t origin) {
 	tiles lowercase_tiles(26, base);
 	tiles number_tiles(10, base);
 
-	assign_tiles(bg_tiles, 1);
-	assign_tiles(fg_tiles, 2);
-	assign_tiles(bold_tiles, 3);
-	assign_tiles(uppercase_tiles, 4);
-	assign_tiles(lowercase_tiles, 5);
-	assign_tiles(number_tiles, 6);
+	const tile& black_tile = bg_tiles.front();
+
+	assign_solid_tiles( bg_tiles, 1, true);
+
+	assign_tiles(       fg_tiles, 2, black_tile, true);
+	assign_tiles(     bold_tiles, 3, black_tile, true);
+	assign_tiles(uppercase_tiles, 4, black_tile);
+	assign_tiles(lowercase_tiles, 5, black_tile);
+	assign_tiles(   number_tiles, 6, black_tile);
 }
 
 void process_calibration() {
