@@ -362,16 +362,6 @@ const tiles& assign_tiles(tiles& tiles, size_t line) {
 
 void process_tiles(const pnm& snapshot, const pos_t size, const pos_t origin) {
 
-	/////////////////////////////////////////////
-	// calibration text is 8 lines and 32 columns
-	/////////////////////////////////////////////
-	// 1.08 background colors
-	// 2.08 foreground colors
-	// 3.08 bold foreground colors
-	// 4.26 uppercase alphabet
-	// 5.26 lowercase alphabet
-	// 6.10 numbers
-
 	tile base(snapshot, size, origin);
 
 	tiles bg_tiles(8, base);

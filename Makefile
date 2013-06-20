@@ -4,26 +4,47 @@ CFLAGS = -Wall -W -pedantic -std=gnu99 -O2
 CXXFLAGS = -Wall -W -pedantic -std=gnu++11 -O2
 CPPFLAGS = -I.
 LIBFLAGS =
-PROGRAMS = auto.calibration.cc auto.pgmtobraile.c auto.pgmtobrailedux.c
+SOURCE = pgmtobraile.c pgmtobrailedux.c calibration.cc
+BUILD = $(SOURCE:%=build.%)
+WIPE = $(SOURCE:%=wipe.%)
 
-.PHONY: all clean wipe auto.calibration.cc auto.pgmtobraile.c auto.pgmtobrailedux.c
+.PHONY : build wipe clean $(BUILD) $(WIPE)
 
-all: $(PROGRAMS)
+build : $(BUILD)
 
-auto.calibration.cc: calibration
+wipe : clean $(WIPE)
+
+clean :
+	rm -f *.o *~ *.dvi *.aux
+
+%.pdf : %.dvi
+	dvipdf $^
+
+%.dvi : %.tex
+	latex $^
+	latex $^
+
+build.pgmtobraile.c: pgmtobraile.o pgmtobraile
+
+wipe.pgmtobraile.c:
+	rm -f pgmtobraile
+
+pgmtobraile: pgmtobraile.o
+	$(CC) $(CCFLAGS) -o $@ $^ $(LIBFLAGS)
+
+build.pgmtobrailedux.c: pgmtobrailedux.o pgmtobrailedux
+
+wipe.pgmtobrailedux.c:
+	rm -f pgmtobrailedux
+
+pgmtobrailedux: pgmtobrailedux.o
+	$(CC) $(CCFLAGS) -o $@ $^ $(LIBFLAGS)
+
+build.calibration.cc: calibration.o calibration
+
+wipe.calibration.cc:
+	rm -f calibration
 
 calibration: calibration.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBFLAGS)
 
-auto.pgmtobraile.c: pgmtobraile
-
-pgmtobraile: pgmtobraile.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LIBFLAGS)
-
-auto.pgmtobrailedux.c: pgmtobrailedux
-
-pgmtobrailedux: pgmtobrailedux.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LIBFLAGS)
-
-clean:
-	rm -f *.o *~ *.dvi *.aux
