@@ -172,10 +172,6 @@ struct tile {
 	rgb_sum_t rgb_sum;
 	rgb_sum_t rgb_stdev;
 
-	rgb_sum_t rgb_color;
-
-	size_t ratio;
-	
 	tile(const pnm& source, const pos_t size, const pos_t pos);
 	tile(const pnm& source, size_t line, size_t column, const pos_t size, const pos_t origin);
 	tile(const pnm& source);
@@ -215,14 +211,6 @@ const pos_t& tile::move(ssize_t lines, ssize_t columns) {
 	sum(rgb_sum);
 	mean(rgb_mean);
 	stdev(rgb_stdev);
-	mean(rgb_color);
-	ratio = n();
-	return pos;
-}
-
-const pos_t& tile::move(ssize_t lines, ssize_t columns, const tile& mask) {
-	move(lines, columns);
-	maxima(rgb_color, mask);
 	return pos;
 }
 
@@ -273,39 +261,6 @@ const rgb_sum_t& tile::sum(rgb_sum_t& v) const {
 	return v;
 }
 
-const rgb_sum_t& tile::maxima(rgb_sum_t& v, const tile& mask) const {
-
-	histogram h[3];
-
-	v[0] = v[1] = v[2] = 0;
-
-	for(size_t y = 0; y < size[1]; y++) {
-		for(size_t x = 0; x < size[0]; x++) {
-
-			const rgb_t& v = *mask.pixel(y,x);
-			const rgb_t& w = *pixel(y,x);
-
-			for(int i = 0; i < 3; i++)
-				if(w[i] != v[i])
-					h[i][w[i]]++;
-		}
-	}
-
-	for(int i = 0; i < 3; i++) {
-
-		auto max = h[i].begin();
-
-		for(auto k = h[i].begin(); k != h[i].end(); k++) {
-			if(k->second > max->second)
-				max = k;
-		}
-
-		v[i] = max->first;
-	}
-
-	return v;
-}
-
 rgb_t *tile::pixel(size_t y, size_t x) const {
 	return source.pixel(pos[1] + y, pos[0] + x);
 }
@@ -318,14 +273,16 @@ std::string tile::to_string() {
 
 	char buffer[128];
 
-	snprintf(buffer, sizeof(buffer), "#%02x%02x%02x / %3d:%-3d @ %3d,%-3d %3d~%-3d %3d~%-3d %3d~%-3d / #%02x%02x%02x / %dx%d",
+	snprintf(buffer, sizeof(buffer), "#%02x%02x%02x / %3d @ %3d,%-3d %3d~%-3d %3d~%-3d %3d~%-3d / #%02x%02x%02x / %dx%d",
 			(uint8_t)rgb_mean[0], (uint8_t)rgb_mean[1], (uint8_t)rgb_mean[2],
-			(int)ratio, (int)n(),
+			(int)n(),
 			(int)pos[0], (int)pos[1],
 			(int)rgb_mean[0], (int)rgb_stdev[0],
 			(int)rgb_mean[1], (int)rgb_stdev[1],
 			(int)rgb_mean[2], (int)rgb_stdev[2],
-			(uint8_t)rgb_color[0], (uint8_t)rgb_color[1], (uint8_t)rgb_color[2],
+			(uint8_t)(rgb_sum[0] * 255 / (0x3f * n())),
+			(uint8_t)(rgb_sum[1] * 255 / (0x3f * n())),
+			(uint8_t)(rgb_sum[2] * 255 / (0x3f * n())),
 			(int)size[1], (int)size[0]
 	);
 
@@ -423,22 +380,11 @@ bool find_code(const pnm& snapshot, size_t y0, code_t code, pos_t pos, size_t *t
 // PROCESS
 //////////
 
-void assign_solid_tiles(tiles& tiles, size_t line, bool print=false) {
+void assign_tiles(tiles& tiles, size_t line, bool print=false) {
 
 	for(size_t column = 0; column < tiles.size(); column++) {
 		tile& t = tiles[column];
 		t.move(line, column);
-		if(print)
-			printf("%s\n", t.to_string().c_str());
-	}
-	putchar('\n');
-}
-
-void assign_tiles(tiles& tiles, size_t line, const tile& mask, bool print=false) {
-
-	for(size_t column = 0; column < tiles.size(); column++) {
-		tile& t = tiles[column];
-		t.move(line, column, mask);
 		if(print)
 			printf("%s\n", t.to_string().c_str());
 	}
@@ -457,15 +403,12 @@ void process_tiles(const pnm& snapshot, const pos_t size, const pos_t origin) {
 	tiles lowercase_tiles(26, base);
 	tiles number_tiles(10, base);
 
-	assign_solid_tiles(bg_tiles, 1, true);
-
-	const tile& black_tile = bg_tiles[0];
-
-	assign_tiles(       fg_tiles, 2, black_tile, true);
-	assign_tiles(     bold_tiles, 3, black_tile, true);
-	assign_tiles(uppercase_tiles, 4, black_tile);
-	assign_tiles(lowercase_tiles, 5, black_tile);
-	assign_tiles(   number_tiles, 6, black_tile);
+	assign_tiles(       bg_tiles, 1, true);
+	assign_tiles(       fg_tiles, 2, true);
+	assign_tiles(     bold_tiles, 3, true);
+	assign_tiles(uppercase_tiles, 4);
+	assign_tiles(lowercase_tiles, 5);
+	assign_tiles(   number_tiles, 6);
 }
 
 void process_calibration() {
@@ -545,7 +488,7 @@ void display_calibration() {
 	std::cout << ansi::bg(ansi::black);
 
 	for(int i = ansi::first_color; i <= ansi::last_color; i++)
-		std::cout << ansi::fg(i) << '|';
+		std::cout << ansi::fg(i) << '#';
 
 	std::cout << std::endl;
 
@@ -555,7 +498,7 @@ void display_calibration() {
 	std::cout << ansi::bg(ansi::black);
 
 	for(int i = ansi::first_color; i <= ansi::last_color; i++)
-		std::cout << ansi::bold << ansi::fg(i) << '|';
+		std::cout << ansi::bold << ansi::fg(i) << '#';
 
 	std::cout << std::endl;
 
