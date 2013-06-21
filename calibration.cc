@@ -82,7 +82,7 @@ namespace ansi {
 
 typedef uint8_t rgb_t[3];
 typedef int32_t rgb_sum_t[3];
-typedef std::map<int32_t, long> histogram;
+typedef std::map<uint8_t, int> histogram;
 
 struct rgb {
 	constexpr static uint32_t tou32(const rgb_t v) {
@@ -172,7 +172,7 @@ struct tile {
 	rgb_sum_t rgb_sum;
 	rgb_sum_t rgb_stdev;
 
-	rgb_sum_t color;
+	rgb_sum_t rgb_color;
 
 	size_t ratio;
 	
@@ -186,6 +186,7 @@ struct tile {
 	const rgb_sum_t& stdev(rgb_sum_t& v) const;
 	const rgb_sum_t& mean(rgb_sum_t& v) const;
 	const rgb_sum_t& sum(rgb_sum_t& v) const;
+	const rgb_sum_t& maxima(rgb_sum_t& v, const tile& mask) const;
 
 	rgb_t *pixel(size_t y, size_t x) const;
 
@@ -214,37 +215,14 @@ const pos_t& tile::move(ssize_t lines, ssize_t columns) {
 	sum(rgb_sum);
 	mean(rgb_mean);
 	stdev(rgb_stdev);
+	mean(rgb_color);
 	ratio = n();
-	sum(color);
 	return pos;
 }
 
 const pos_t& tile::move(ssize_t lines, ssize_t columns, const tile& mask) {
-
 	move(lines, columns);
-
-	ratio = 0;
-
-	color[0] = color[1] = color[2] = 0;
-
-	for(size_t y = 0; y < size[1]; y++) {
-		for(size_t x = 0; x < size[0]; x++) {
-
-			const rgb_t& w = *pixel(y,x);
-
-			if(
-				!rgb::equals(w, *mask.pixel(y,x))
-				&& w[0] >= (rgb_mean[0] - rgb_stdev[0])
-				&& w[1] >= (rgb_mean[1] - rgb_stdev[1])
-				&& w[2] >= (rgb_mean[2] - rgb_stdev[2])
-			  ) {
-				ratio++;
-				for(int i = 0; i < 3; i++)
-					color[i] += w[i];
-			}
-		}
-	}
-
+	maxima(rgb_color, mask);
 	return pos;
 }
 
@@ -278,7 +256,6 @@ const rgb_sum_t& tile::stdev(rgb_sum_t& v) const {
 	return v;
 }
 
-
 const rgb_sum_t& tile::sum(rgb_sum_t& v) const {
 
 	v[0] = v[1] = v[2] = 0;
@@ -291,6 +268,39 @@ const rgb_sum_t& tile::sum(rgb_sum_t& v) const {
 			for(int i = 0; i < 3; i++)
 				v[i] += w[i];
 		}
+	}
+
+	return v;
+}
+
+const rgb_sum_t& tile::maxima(rgb_sum_t& v, const tile& mask) const {
+
+	histogram h[3];
+
+	v[0] = v[1] = v[2] = 0;
+
+	for(size_t y = 0; y < size[1]; y++) {
+		for(size_t x = 0; x < size[0]; x++) {
+
+			const rgb_t& v = *mask.pixel(y,x);
+			const rgb_t& w = *pixel(y,x);
+
+			for(int i = 0; i < 3; i++)
+				if(w[i] != v[i])
+					h[i][w[i]]++;
+		}
+	}
+
+	for(int i = 0; i < 3; i++) {
+
+		auto max = h[i].begin();
+
+		for(auto k = h[i].begin(); k != h[i].end(); k++) {
+			if(k->second > max->second)
+				max = k;
+		}
+
+		v[i] = max->first;
 	}
 
 	return v;
@@ -309,16 +319,14 @@ std::string tile::to_string() {
 	char buffer[128];
 
 	snprintf(buffer, sizeof(buffer), "#%02x%02x%02x / %3d:%-3d @ %3d,%-3d %3d~%-3d %3d~%-3d %3d~%-3d / #%02x%02x%02x / %dx%d",
-			(int)rgb_mean[0], (int)rgb_mean[1], (int)rgb_mean[2],
+			(uint8_t)rgb_mean[0], (uint8_t)rgb_mean[1], (uint8_t)rgb_mean[2],
 			(int)ratio, (int)n(),
 			(int)pos[0], (int)pos[1],
 			(int)rgb_mean[0], (int)rgb_stdev[0],
 			(int)rgb_mean[1], (int)rgb_stdev[1],
 			(int)rgb_mean[2], (int)rgb_stdev[2],
-			(int)(ratio ? (color[0] / ratio) : 0),
-			(int)(ratio ? (color[1] / ratio) : 0),
-			(int)(ratio ? (color[2] / ratio) : 0),
-			(int)size[1],(int)size[0]
+			(uint8_t)rgb_color[0], (uint8_t)rgb_color[1], (uint8_t)rgb_color[2],
+			(int)size[1], (int)size[0]
 	);
 
 	return std::string(buffer);
@@ -449,27 +457,15 @@ void process_tiles(const pnm& snapshot, const pos_t size, const pos_t origin) {
 	tiles lowercase_tiles(26, base);
 	tiles number_tiles(10, base);
 
+	assign_solid_tiles(bg_tiles, 1, true);
+
 	const tile& black_tile = bg_tiles[0];
 
-	assign_solid_tiles( bg_tiles, 1, true);
-
-	assign_tiles(     bold_tiles, 3, black_tile, true);
 	assign_tiles(       fg_tiles, 2, black_tile, true);
+	assign_tiles(     bold_tiles, 3, black_tile, true);
 	assign_tiles(uppercase_tiles, 4, black_tile);
 	assign_tiles(lowercase_tiles, 5, black_tile);
 	assign_tiles(   number_tiles, 6, black_tile);
-
-	const tile& plus = bold_tiles[0];
-
-	for(size_t y = 0; y < plus.size[1]; y++) {
-		for(size_t x = 0; x < plus.size[0]; x++) {
-			const rgb_t& w = *plus.pixel(y,x);
-			const rgb_t& v = *black_tile.pixel(y,x);
-			putchar(rgb::equals(v,w) ? ' ' : 'X');
-		}
-		putchar('\n');
-	}
-	
 }
 
 void process_calibration() {
@@ -549,7 +545,7 @@ void display_calibration() {
 	std::cout << ansi::bg(ansi::black);
 
 	for(int i = ansi::first_color; i <= ansi::last_color; i++)
-		std::cout << ansi::fg(i) << '+';
+		std::cout << ansi::fg(i) << '|';
 
 	std::cout << std::endl;
 
@@ -559,7 +555,7 @@ void display_calibration() {
 	std::cout << ansi::bg(ansi::black);
 
 	for(int i = ansi::first_color; i <= ansi::last_color; i++)
-		std::cout << ansi::bold << ansi::fg(i) << '+';
+		std::cout << ansi::bold << ansi::fg(i) << '|';
 
 	std::cout << std::endl;
 
