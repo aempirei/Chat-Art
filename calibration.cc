@@ -232,11 +232,12 @@ const pos_t& tile::move(ssize_t lines, ssize_t columns, const tile& mask) {
 
 			const rgb_t& w = *pixel(y,x);
 
-			if(	!rgb::equals(w, *mask.pixel(y,x)) &&
-					w[0] >= (rgb_mean[0] - rgb_stdev[0]) &&
-					w[1] >= (rgb_mean[1] - rgb_stdev[1]) &&
-					w[2] >= (rgb_mean[2] - rgb_stdev[2]))
-			{
+			if(
+				!rgb::equals(w, *mask.pixel(y,x))
+				&& w[0] >= (rgb_mean[0] - rgb_stdev[0])
+				&& w[1] >= (rgb_mean[1] - rgb_stdev[1])
+				&& w[2] >= (rgb_mean[2] - rgb_stdev[2])
+			  ) {
 				ratio++;
 				for(int i = 0; i < 3; i++)
 					color[i] += w[i];
@@ -307,7 +308,7 @@ std::string tile::to_string() {
 
 	char buffer[128];
 
-	snprintf(buffer, sizeof(buffer), "#%02x%02x%02x / %3d:%-3d @ %3d,%-3d %3d~%-3d %3d~%-3d %3d~%-3d / #%02x%02x%02x",
+	snprintf(buffer, sizeof(buffer), "#%02x%02x%02x / %3d:%-3d @ %3d,%-3d %3d~%-3d %3d~%-3d %3d~%-3d / #%02x%02x%02x / %dx%d",
 			(int)rgb_mean[0], (int)rgb_mean[1], (int)rgb_mean[2],
 			(int)ratio, (int)n(),
 			(int)pos[0], (int)pos[1],
@@ -316,7 +317,8 @@ std::string tile::to_string() {
 			(int)rgb_mean[2], (int)rgb_stdev[2],
 			(int)(ratio ? (color[0] / ratio) : 0),
 			(int)(ratio ? (color[1] / ratio) : 0),
-			(int)(ratio ? (color[2] / ratio) : 0)
+			(int)(ratio ? (color[2] / ratio) : 0),
+			(int)size[1],(int)size[0]
 	);
 
 	return std::string(buffer);
@@ -447,15 +449,27 @@ void process_tiles(const pnm& snapshot, const pos_t size, const pos_t origin) {
 	tiles lowercase_tiles(26, base);
 	tiles number_tiles(10, base);
 
-	const tile& black_tile = bg_tiles.front();
+	const tile& black_tile = bg_tiles[0];
 
 	assign_solid_tiles( bg_tiles, 1, true);
 
-	assign_tiles(       fg_tiles, 2, black_tile, true);
 	assign_tiles(     bold_tiles, 3, black_tile, true);
+	assign_tiles(       fg_tiles, 2, black_tile, true);
 	assign_tiles(uppercase_tiles, 4, black_tile);
 	assign_tiles(lowercase_tiles, 5, black_tile);
 	assign_tiles(   number_tiles, 6, black_tile);
+
+	const tile& plus = bold_tiles[0];
+
+	for(size_t y = 0; y < plus.size[1]; y++) {
+		for(size_t x = 0; x < plus.size[0]; x++) {
+			const rgb_t& w = *plus.pixel(y,x);
+			const rgb_t& v = *black_tile.pixel(y,x);
+			putchar(rgb::equals(v,w) ? ' ' : 'X');
+		}
+		putchar('\n');
+	}
+	
 }
 
 void process_calibration() {
@@ -535,7 +549,7 @@ void display_calibration() {
 	std::cout << ansi::bg(ansi::black);
 
 	for(int i = ansi::first_color; i <= ansi::last_color; i++)
-		std::cout << ansi::fg(i) << 'X';
+		std::cout << ansi::fg(i) << '+';
 
 	std::cout << std::endl;
 
@@ -545,7 +559,7 @@ void display_calibration() {
 	std::cout << ansi::bg(ansi::black);
 
 	for(int i = ansi::first_color; i <= ansi::last_color; i++)
-		std::cout << ansi::bold << ansi::fg(i) << 'X';
+		std::cout << ansi::bold << ansi::fg(i) << '+';
 
 	std::cout << std::endl;
 
