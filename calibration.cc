@@ -168,7 +168,7 @@ struct tile {
 	constexpr static int lum_max = ((1 << (8-lum_shift)) - 1);
 	constexpr static unsigned int mean_mask = ~((1U << mean_shift) - 1);
  
-	const pnm& source;
+	const pnm *source;
 
 	pos_t size;
 	pos_t pos;
@@ -182,9 +182,9 @@ struct tile {
 
 	int ch;
 
-	tile(const pnm& source, const pos_t size, const pos_t pos);
-	tile(const pnm& source, size_t line, size_t column, const pos_t size, const pos_t origin);
-	tile(const pnm& source);
+	tile(const pnm *source, const pos_t size, const pos_t pos);
+	tile(const pnm *source, size_t line, size_t column, const pos_t size, const pos_t origin);
+	tile(const pnm *source);
 
 	const pos_t& move(ssize_t lines, ssize_t columns, int base);
 
@@ -204,15 +204,15 @@ struct tile {
 	static const pos_t& position(pos_t& xy, size_t line, size_t column, const pos_t size, const pos_t origin);
 };
 
-tile::tile(const pnm& source) : source(source) {
+tile::tile(const pnm *source) : source(source) {
 }
 
-tile::tile(const pnm& source, const pos_t size, const pos_t pos) : source(source) {
+tile::tile(const pnm *source, const pos_t size, const pos_t pos) : source(source) {
 	memcpy(this->size, size, sizeof(pos_t));
 	memcpy(this->pos, pos, sizeof(pos_t));
 }
 
-tile::tile(const pnm& source, size_t line, size_t column, const pos_t size, const pos_t origin) : source(source) {
+tile::tile(const pnm *source, size_t line, size_t column, const pos_t size, const pos_t origin) : source(source) {
 	memcpy(this->size, size, sizeof(pos_t));
 	tile::position(this->pos, line, column, size, origin);
 }
@@ -285,7 +285,7 @@ void tile::set_color_lum() {
 }
 
 rgb_t *tile::pixel(size_t y, size_t x) const {
-	return source.pixel(pos[1] + y, pos[0] + x);
+	return source->pixel(pos[1] + y, pos[0] + x);
 }
 
 size_t tile::n() const {
@@ -332,6 +332,16 @@ const pos_t& tile::position(pos_t& xy, size_t line, size_t column, const pos_t s
 }
 
 typedef std::vector<tile> tiles;
+
+/////////
+// CONFIG
+/////////
+
+struct config {
+	tiles lo_color_tiles;
+	tiles hi_color_tiles;
+	tiles symbolic_tiles;
+};
 
 ///////
 // CODE
@@ -416,10 +426,10 @@ bool find_code(const pnm& snapshot, size_t y0, code_t code, pos_t pos, size_t *t
 // PROCESS
 //////////
 
-void assign_tiles(tiles& tiles, size_t line, int base, bool verbose=false) {
+void assign_tiles(tiles& ts, size_t line, int base, bool verbose=false) {
 
-	for(size_t column = 0; column < tiles.size(); column++) {
-		tile& t = tiles[column];
+	for(size_t column = 0; column < ts.size(); column++) {
+		tile& t = ts[column];
 		t.move(line, column, base);
 		if(verbose)
 			printf("%s\n", t.to_string().c_str());
@@ -428,54 +438,51 @@ void assign_tiles(tiles& tiles, size_t line, int base, bool verbose=false) {
 		putchar('\n');
 }
 
-void print_tile_info(const tiles& tiles) {
+void assign_symbolic_tiles(config& cfg, std::list<tiles> tiles_list) {
 
 	histogram seen;
 
-	for(auto t : tiles)
-		if(!seen[t.lum]++)
-			printf("%s\n", t.to_string().c_str());
+	for(auto ts : tiles_list) {
+		for(auto t : ts) {
+			if(!seen[t.lum]++) {
+				cfg.symbolic_tiles.push_back(t);
+				printf("%s\n", t.to_string().c_str());
+			}
+		}
+	}
 
 	putchar('\n');
 }
 
 
-void process_tiles(const pnm& snapshot, const pos_t size, const pos_t origin) {
+void process_tiles(config& cfg, const pnm& snapshot, const pos_t size, const pos_t origin) {
 
-	tile base(snapshot, size, origin);
+	tile base(&snapshot, size, origin);
 
-	tiles     solid_tiles(8, base);
-	tiles        lo_tiles(8, base);
-	tiles        hi_tiles(8, base);
+	tiles     solid_tiles( 8, base);
 	tiles uppercase_tiles(26, base);
 	tiles lowercase_tiles(26, base);
 	tiles    number_tiles(10, base);
 
-	assign_tiles(    solid_tiles, 1,  -1, true);
-	assign_tiles(       lo_tiles, 2,  -1, true);
-	assign_tiles(       hi_tiles, 3,  -1, true);
-	assign_tiles(uppercase_tiles, 4, 'A');
-	assign_tiles(lowercase_tiles, 5, 'a');
-	assign_tiles(   number_tiles, 6, '0');
+	cfg.lo_color_tiles.resize(8, base);
+	cfg.hi_color_tiles.resize(8, base);
 
-	tiles symbol_tiles;
+	assign_tiles(       solid_tiles, 1,  -1, true);
 
-	for(auto t : uppercase_tiles)
-		symbol_tiles.push_back(t);
+	assign_tiles(cfg.lo_color_tiles, 2,  -1, true);
+	assign_tiles(cfg.hi_color_tiles, 3,  -1, true);
 
-	for(auto t : lowercase_tiles)
-		symbol_tiles.push_back(t);
+	assign_tiles(   uppercase_tiles, 4, 'A'      );
+	assign_tiles(   lowercase_tiles, 5, 'a'      );
+	assign_tiles(      number_tiles, 6, '0'      );
 
-	for(auto t : number_tiles)
-		symbol_tiles.push_back(t);
-
-	print_tile_info(symbol_tiles);
-
+	assign_symbolic_tiles(cfg, {uppercase_tiles, lowercase_tiles, number_tiles});
 }
 
 void process_calibration() {
 
 	pnm snapshot(stdin);
+	config cfg;
 
 	if(snapshot.isloaded()) {
 
@@ -498,7 +505,7 @@ void process_calibration() {
 
 				pos_t tile_sz = { prefix_tile_width, hn / (calibration_lines - 1) };
 
-				process_tiles(snapshot, tile_sz, prefix_pos);
+				process_tiles(cfg, snapshot, tile_sz, prefix_pos);
 			}
 		}
 	}
