@@ -180,13 +180,14 @@ struct tile {
 	rgb_t color;
 	uint8_t lum;
 
-	int ch;
+	int base;
+	int code;
 
 	tile(const pnm *source, const pos_t size, const pos_t pos);
 	tile(const pnm *source, size_t line, size_t column, const pos_t size, const pos_t origin);
 	tile(const pnm *source);
 
-	const pos_t& move(ssize_t lines, ssize_t columns, int base);
+	const pos_t& move(ssize_t lines, ssize_t columns, int my_base);
 
 	const rgb_sum_t& stdev(rgb_sum_t& v) const;
 	const rgb_sum_t& mean(rgb_sum_t& v) const;
@@ -216,14 +217,15 @@ tile::tile(const pnm *source, size_t line, size_t column, const pos_t size, cons
 	memcpy(this->size, size, sizeof(pos_t));
 	tile::position(this->pos, line, column, size, origin);
 }
-const pos_t& tile::move(ssize_t lines, ssize_t columns, int base) {
+const pos_t& tile::move(ssize_t lines, ssize_t columns, int my_base) {
 	pos[1] += lines * size[1];
 	pos[0] += columns * size[0];
 	sum(rgb_sum);
 	mean(rgb_mean);
 	stdev(rgb_stdev);
 	set_color_lum();
-	ch = (base == -1) ? ' ' : (base + columns);
+	base = my_base;
+	code = columns;
 	return pos;
 }
 
@@ -297,7 +299,9 @@ std::string tile::to_string() {
 	char buf[128];
 
 	snprintf(buf, sizeof(buf), 
-			"%c %3d   "
+			"base %02x   "
+			"code %02x   "
+			"(%c)   "
 			"mean #%02x%02x%02x   "
 			"proj #%02x%02x%02x   "
 			"lum %2d:%-2d %3d%%   "
@@ -307,7 +311,9 @@ std::string tile::to_string() {
 			"rgb_mean %3d %3d %3d   "
 			"rgb_stdev %3d %3d %3d   "
 			"size %dx%d",
-			ch, ch,
+			base,
+			code,
+			base < ' ' ? '~' : (base + code),
 			(uint8_t)rgb_mean[0], (uint8_t)rgb_mean[1], (uint8_t)rgb_mean[2],
 			color[0], color[1], color[2],
 			lum, lum_max-lum, 100*lum/lum_max,
@@ -467,16 +473,20 @@ void process_tiles(config& cfg, const pnm& snapshot, const pos_t size, const pos
 	cfg.lo_color_tiles.resize(8, base);
 	cfg.hi_color_tiles.resize(8, base);
 
-	assign_tiles(       solid_tiles, 1,  -1, true);
+	assign_tiles(       solid_tiles, 1,   0, true);
 
-	assign_tiles(cfg.lo_color_tiles, 2,  -1, true);
-	assign_tiles(cfg.hi_color_tiles, 3,  -1, true);
+	assign_tiles(cfg.lo_color_tiles, 2,   0, true);
+	assign_tiles(cfg.hi_color_tiles, 3,   1, true);
 
 	assign_tiles(   uppercase_tiles, 4, 'A'      );
 	assign_tiles(   lowercase_tiles, 5, 'a'      );
 	assign_tiles(      number_tiles, 6, '0'      );
 
-	assign_symbolic_tiles(cfg, {uppercase_tiles, lowercase_tiles, number_tiles});
+	auto space_tile = solid_tiles.front();
+	space_tile.base = ' ';
+	space_tile.code = 0;
+
+	assign_symbolic_tiles(cfg, {uppercase_tiles, lowercase_tiles, number_tiles, tiles(1, space_tile)});
 }
 
 void process_calibration() {
