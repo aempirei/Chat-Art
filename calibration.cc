@@ -74,6 +74,8 @@ namespace ansi {
 	const std::string clear = esc(0, 'm');
 
 	enum color_index { black, red, green, yellow, blue, magenta, cyan, white, first_color = black, last_color = white };
+
+	const char *color_name[] = { "black","red","green","yellow","blue","magenta","cyan","white" };
 }
 
 //////
@@ -161,33 +163,48 @@ rgb_t *pnm::pixel(size_t y, size_t x) const {
 // TILE
 ///////
 
-struct tile {
 
-	constexpr static int mean_shift = 2;
-	constexpr static int lum_shift = 2;
-	constexpr static int lum_max = ((1 << (8-lum_shift)) - 1);
-	constexpr static unsigned int mean_mask = ~((1U << mean_shift) - 1);
- 
-	const pnm *source;
+struct geometry {
+
+	constexpr static int ratio_shift = 2;
+	constexpr static int ratio_max = ((1 << (8-ratio_shift)) - 1);
+
+	enum mode_type { SOLID = 0, BGCOLOR = 1, FGCOLOR = 2, SYMBOL = 3 };
 
 	pos_t size;
+
+	rgb_t color;
+
+	int ratio;
+
+	mode_type mode;
+
+	int code;
+	int base;
+
+	std::string to_string() const;
+};
+
+struct tile {
+
+ 	constexpr static int mean_shift = 2;
+	constexpr static unsigned int mean_mask = ~((1U << mean_shift) - 1);
+
+	const pnm *source;
+
+	geometry geo;
+
 	pos_t pos;
 
 	rgb_sum_t rgb_mean;
 	rgb_sum_t rgb_sum;
 	rgb_sum_t rgb_stdev;
 
-	rgb_t color;
-	uint8_t lum;
-
-	int base;
-	int code;
-
 	tile(const pnm *source, const pos_t size, const pos_t pos);
 	tile(const pnm *source, size_t line, size_t column, const pos_t size, const pos_t origin);
 	tile(const pnm *source);
 
-	const pos_t& move(ssize_t lines, ssize_t columns, int my_base);
+	const pos_t& move(ssize_t lines, ssize_t columns);
 
 	const rgb_sum_t& stdev(rgb_sum_t& v) const;
 	const rgb_sum_t& mean(rgb_sum_t& v) const;
@@ -200,7 +217,9 @@ struct tile {
 
 	size_t n() const;
 
-	std::string to_string();
+	std::string to_string() const;
+
+	tile& set_status(geometry::mode_type my_mode, int my_code, int my_base);
 	
 	static const pos_t& position(pos_t& xy, size_t line, size_t column, const pos_t size, const pos_t origin);
 };
@@ -209,23 +228,31 @@ tile::tile(const pnm *source) : source(source) {
 }
 
 tile::tile(const pnm *source, const pos_t size, const pos_t pos) : source(source) {
-	memcpy(this->size, size, sizeof(pos_t));
+	memcpy(geo.size, size, sizeof(pos_t));
 	memcpy(this->pos, pos, sizeof(pos_t));
 }
 
 tile::tile(const pnm *source, size_t line, size_t column, const pos_t size, const pos_t origin) : source(source) {
-	memcpy(this->size, size, sizeof(pos_t));
+	memcpy(geo.size, size, sizeof(pos_t));
 	tile::position(this->pos, line, column, size, origin);
 }
-const pos_t& tile::move(ssize_t lines, ssize_t columns, int my_base) {
-	pos[1] += lines * size[1];
-	pos[0] += columns * size[0];
+tile& tile::set_status(geometry::mode_type my_mode, int my_code, int my_base) {
+	geo.mode = my_mode;
+	geo.code = my_code;
+	geo.base = my_base;
+	return *this;
+}
+const pos_t& tile::move(ssize_t lines, ssize_t columns) {
+
+	pos[1] += lines * geo.size[1];
+	pos[0] += columns * geo.size[0];
+
 	sum(rgb_sum);
 	mean(rgb_mean);
 	stdev(rgb_stdev);
+
 	set_color_lum();
-	base = my_base;
-	code = columns;
+
 	return pos;
 }
 
@@ -241,8 +268,8 @@ const rgb_sum_t& tile::stdev(rgb_sum_t& v) const {
 
 	v[0] = v[1] = v[2] = 0;
 
-	for(size_t y = 0; y < size[1]; y++) {
-		for(size_t x = 0; x < size[0]; x++) {
+	for(size_t y = 0; y < geo.size[1]; y++) {
+		for(size_t x = 0; x < geo.size[0]; x++) {
 
 			const rgb_t& w = *pixel(y,x);
 
@@ -263,8 +290,8 @@ const rgb_sum_t& tile::sum(rgb_sum_t& v) const {
 
 	v[0] = v[1] = v[2] = 0;
 
-	for(size_t y = 0; y < size[1]; y++) {
-		for(size_t x = 0; x < size[0]; x++) {
+	for(size_t y = 0; y < geo.size[1]; y++) {
+		for(size_t x = 0; x < geo.size[0]; x++) {
 
 			const rgb_t& w = *pixel(y,x);
 
@@ -277,12 +304,12 @@ const rgb_sum_t& tile::sum(rgb_sum_t& v) const {
 }
 
 void tile::set_color_lum() {
-	lum = 0;
+	geo.ratio = 0;
 	for(int i = 0; i < 3; i++) {
-		uint8_t level = (uint8_t)(rgb_sum[i] / n()) >> lum_shift;
-		color[i] = (uint8_t)(rgb_sum[i] * 255 / (0x3f * n())) & mean_mask;
-		if(level > lum)
-			lum = level;
+		uint8_t level = (uint8_t)(rgb_sum[i] / n()) >> geometry::ratio_shift;
+		geo.color[i] = (uint8_t)(rgb_sum[i] * 255 / (0x3f * n())) & mean_mask;
+		if(level > geo.ratio)
+			geo.ratio = level;
 	}
 }
 
@@ -291,32 +318,86 @@ rgb_t *tile::pixel(size_t y, size_t x) const {
 }
 
 size_t tile::n() const {
-	return size[0] * size[1];
+	return geo.size[0] * geo.size[1];
 }
 
-std::string tile::to_string() {
+std::string geometry::to_string() const {
 
 	char buf[128];
+	char modebuf[128];
+
+	switch(mode) {
+
+		case geometry::BGCOLOR: 
+		case geometry::FGCOLOR: 
+
+			snprintf(modebuf, sizeof(modebuf), " color %3d %3d %3d   # %s%s", color[0], color[1], color[2],
+					base ? "bold " : "", ansi::color_name[code]
+					);
+			break;
+
+		case geometry::SYMBOL:
+
+			snprintf(modebuf, sizeof(modebuf), " ratio %2d %2d size %d %d   # (%c)",
+					ratio, ratio_max - ratio,
+					(int)size[1], (int)size[0], base + code
+				);
+			break;
+
+		case geometry::SOLID:
+		default:
+			*modebuf = '\0';
+	}
+
+
+
+	snprintf(buf, sizeof(buf), "mcb %2d %2d %2d%s", mode, code, base, modebuf);
+
+	return std::string(buf);
+
+}
+
+std::string tile::to_string() const {
+
+	char buf[256];
+	char basebuf[16];
+
+	switch(geo.mode) {
+		case geometry::BGCOLOR: 
+			snprintf(basebuf, sizeof(basebuf), "%d,%d", geo.base, 40 + geo.code );
+			break;
+		case geometry::FGCOLOR: 
+			snprintf(basebuf, sizeof(basebuf), "%d,%d", geo.base, 30 + geo.code );
+			break;
+		case geometry::SYMBOL:
+			snprintf(basebuf, sizeof(basebuf), "(%c)" , geo.base + geo.code);
+			break;
+		case geometry::SOLID:
+		default:
+			*basebuf = '\0';
+	}
 
 	snprintf(buf, sizeof(buf), 
-			"base %02x   "
-			"code %02x   "
-			"(%c)   "
-			"mean #%02x%02x%02x   "
-			"proj #%02x%02x%02x   "
-			"lum %2d:%-2d %3d%%   "
-			"n %3d   "
-			"x %3d   "
-			"y %-3d   "
-			"rgb_mean %3d %3d %3d   "
-			"rgb_stdev %3d %3d %3d   "
+			"mode %02x "
+			"code %02x "
+			"base %02x "
+			"%4s "
+			"color #%02x%02x%02x "
+			"~ #%02x%02x%02x "
+			"ratio %2d:%-2d %3d%% "
+			"n %3d "
+			"x %3d "
+			"y %3d "
+			"rgb_mean %3d %3d %3d "
+			"rgb_stdev %3d %3d %3d "
 			"size %dx%d",
-			base,
-			code,
-			base < ' ' ? '~' : (base + code),
+			geo.mode,
+			geo.code,
+			geo.base,
+			basebuf,
 			(uint8_t)rgb_mean[0], (uint8_t)rgb_mean[1], (uint8_t)rgb_mean[2],
-			color[0], color[1], color[2],
-			lum, lum_max-lum, 100*lum/lum_max,
+			geo.color[0],geo.color[1],geo.color[2],
+			geo.ratio, geometry::ratio_max-geo.ratio, 100*geo.ratio/geometry::ratio_max,
 			(int)n(),
 			(int)pos[0], (int)pos[1],
 			(int)rgb_mean[0],
@@ -325,7 +406,7 @@ std::string tile::to_string() {
 			(int)rgb_stdev[0],
 			(int)rgb_stdev[1],
 			(int)rgb_stdev[2],
-			(int)size[1], (int)size[0]
+			(int)geo.size[1], (int)geo.size[0]
 	);
 
 	return std::string(buf);
@@ -344,9 +425,9 @@ typedef std::vector<tile> tiles;
 /////////
 
 struct config {
-	tiles lo_color_tiles;
-	tiles hi_color_tiles;
-	tiles symbolic_tiles;
+	tiles bg_colors;
+	tiles fg_colors;
+	tiles symbols;
 };
 
 ///////
@@ -432,34 +513,33 @@ bool find_code(const pnm& snapshot, size_t y0, code_t code, pos_t pos, size_t *t
 // PROCESS
 //////////
 
-void assign_tiles(tiles& ts, size_t line, int base, bool verbose=false) {
+void assign_tiles(tiles& ts, size_t line, geometry::mode_type mode, int base) {
 
 	for(size_t column = 0; column < ts.size(); column++) {
+
+		const auto& code = column;
 		tile& t = ts[column];
-		t.move(line, column, base);
-		if(verbose)
-			printf("%s\n", t.to_string().c_str());
+
+		t.move(line, column);
+		t.set_status(mode, code, base);
 	}
-	if(verbose)
-		putchar('\n');
 }
 
 void assign_symbolic_tiles(config& cfg, std::list<tiles> tiles_list) {
 
 	histogram seen;
 
-	for(auto ts : tiles_list) {
-		for(auto t : ts) {
-			if(!seen[t.lum]++) {
-				cfg.symbolic_tiles.push_back(t);
-				printf("%s\n", t.to_string().c_str());
-			}
-		}
-	}
-
-	putchar('\n');
+	for(auto ts : tiles_list)
+		for(auto t : ts)
+			if(!seen[t.geo.ratio]++)
+				cfg.symbols.push_back(t);
 }
 
+void print_tiles(const tiles& ts, const char *title) {
+	printf("#\n# %s\n#\n", title);
+	for(auto t : ts) 
+		printf("%s\n", t.geo.to_string().c_str());
+}
 
 void process_tiles(config& cfg, const pnm& snapshot, const pos_t size, const pos_t origin) {
 
@@ -470,23 +550,32 @@ void process_tiles(config& cfg, const pnm& snapshot, const pos_t size, const pos
 	tiles lowercase_tiles(26, base);
 	tiles    number_tiles(10, base);
 
-	cfg.lo_color_tiles.resize(8, base);
-	cfg.hi_color_tiles.resize(8, base);
+	cfg.bg_colors.resize(8, base);
+	cfg.fg_colors.resize(8, base);
 
-	assign_tiles(       solid_tiles, 1,   0, true);
+	assign_tiles(    solid_tiles, 1, geometry::SOLID,   0);
 
-	assign_tiles(cfg.lo_color_tiles, 2,   0, true);
-	assign_tiles(cfg.hi_color_tiles, 3,   1, true);
+	assign_tiles(  cfg.bg_colors, 2, geometry::BGCOLOR, 0);
+	assign_tiles(  cfg.fg_colors, 3, geometry::FGCOLOR, 1);
 
-	assign_tiles(   uppercase_tiles, 4, 'A'      );
-	assign_tiles(   lowercase_tiles, 5, 'a'      );
-	assign_tiles(      number_tiles, 6, '0'      );
+	assign_tiles(uppercase_tiles, 4, geometry::SYMBOL, 'A');
+	assign_tiles(lowercase_tiles, 5, geometry::SYMBOL, 'a');
+	assign_tiles(   number_tiles, 6, geometry::SYMBOL, '0');
 
-	auto space_tile = solid_tiles.front();
-	space_tile.base = ' ';
-	space_tile.code = 0;
+	for(tile t : cfg.bg_colors) {
+		t.geo.mode = geometry::FGCOLOR;
+		cfg.fg_colors.push_back(t);
+	}
+
+	tile space_tile = solid_tiles.front();
+
+	space_tile.set_status(geometry::SYMBOL, 0, ' ');
 
 	assign_symbolic_tiles(cfg, {uppercase_tiles, lowercase_tiles, number_tiles, tiles(1, space_tile)});
+
+	print_tiles(cfg.bg_colors, "background colors");
+	print_tiles(cfg.fg_colors, "foreground colors");
+	print_tiles(cfg.symbols  , "character symbols");
 }
 
 void process_calibration() {
