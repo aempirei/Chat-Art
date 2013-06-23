@@ -444,16 +444,16 @@ void process_tiles(const pnm& snapshot, const pos_t size, const pos_t origin) {
 
 	tile base(snapshot, size, origin);
 
-	tiles bg_tiles(8, base);
-	tiles fg_tiles(8, base);
-	tiles bold_tiles(8, base);
+	tiles     solid_tiles(8, base);
+	tiles        lo_tiles(8, base);
+	tiles        hi_tiles(8, base);
 	tiles uppercase_tiles(26, base);
 	tiles lowercase_tiles(26, base);
-	tiles number_tiles(10, base);
+	tiles    number_tiles(10, base);
 
-	assign_tiles(       bg_tiles, 1,  -1, true);
-	assign_tiles(       fg_tiles, 2,  -1, true);
-	assign_tiles(     bold_tiles, 3,  -1, true);
+	assign_tiles(    solid_tiles, 1,  -1, true);
+	assign_tiles(       lo_tiles, 2,  -1, true);
+	assign_tiles(       hi_tiles, 3,  -1, true);
 	assign_tiles(uppercase_tiles, 4, 'A');
 	assign_tiles(lowercase_tiles, 5, 'a');
 	assign_tiles(   number_tiles, 6, '0');
