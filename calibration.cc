@@ -692,11 +692,13 @@ void help(const char *prog) {
 	std::cerr << "after displaying the calibration in your terminal, save a snapshot of the pattern.\n"; 
 	std::cerr << "this can usually be done via the PRINT SCREEN button. afterward, convert it to the\n";
 	std::cerr << "PNM file format.  netpbm, djpeg or imagemagick can usually do this. finally, pipe\n";
-	std::cerr << "the PNM file into this program again using the '-c' option\n\n";
+	std::cerr << "the PNM file into this program again using the '-p' option and then redirect output\n";
+	std::cerr << "to a configuration file.\n\n";
 	std::cerr << "\t-d   display the calibration pattern to stdout\n";
 	std::cerr << "\t-p   process calibration pattern image snapshot from stdin\n";
 	std::cerr << "\t-h   show this help\n\n";
-	std::cerr << "report bugs to <aempirei@gmail.com>\n\n";
+	std::cerr << "example: djpeg screenshot.jpg | calibration -p > conf.d/ubuntu-mono-12.conf\n\n";
+	std::cerr << "report bugs to <aempirei@256.bz>\n\n";
 }
 
 int main(int argc, char **argv) {
