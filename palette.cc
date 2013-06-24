@@ -55,21 +55,32 @@ int main(int argc, char **argv) {
 		int rgb[3];
 		int n;
 		int mode;
+		int skip;
 
 		char *p = strpbrk(line, "\r\n#");
 
 		if(p != NULL)
 			*p = '\0';
 
-		if(sscanf(line, " mcb %d %d %d color %d %d %d ", &mode, &g.code, &g.base, rgb+0, rgb+1, rgb+2) == 6) {
+		if(sscanf(line, " mcb %d %d %d color %d %d %d %n", &mode, &g.code, &g.base, rgb+0, rgb+1, rgb+2, &skip) == 6) {
+
+			if(line[skip] != '\0') {
+				std::cerr << "unexpected trailing characters on configuration line: " << line << std::endl;
+				return -1;
+			}
 
 			g.mode = (geometry::mode_type)mode;
 
 			for(int i = 0; i < 3; i++)
 				g.color[i] = (uint8_t)rgb[i];
 
-		} else if(sscanf(line, " mcb %d %d %d ratio %d %d size %d %d ",
-					&mode, &g.code, &g.base, &g.ratio, &n, g.size + 1, g.size + 0) == 7) {
+		} else if(sscanf(line, " mcb %d %d %d ratio %d %d size %d %d %n",
+					&mode, &g.code, &g.base, &g.ratio, &n, g.size + 1, g.size + 0, &skip) == 7) {
+
+			if(line[skip] != '\0') {
+				std::cerr << "unexpected trailing characters on configuration line: " << line << std::endl;
+				return -1;
+			}
 
 			g.mode = (geometry::mode_type)mode;
 
