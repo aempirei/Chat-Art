@@ -304,7 +304,7 @@ void help(const char *prog) {
 	std::cerr << "\t-d   display the calibration pattern to stdout\n";
 	std::cerr << "\t-p   process calibration pattern image snapshot from stdin\n";
 	std::cerr << "\t-h   show this help\n\n";
-	std::cerr << "example: djpeg screenshot.jpg | calibration -p > conf.d/ubuntu-mono-12.conf\n\n";
+	std::cerr << "example: djpeg screenshot.jpg | " << prog << " -p > conf.d/ubuntu-mono-12.conf\n\n";
 	std::cerr << "report bugs to <aempirei@256.bz>\n\n";
 }
 
