@@ -2,7 +2,7 @@ CC = gcc
 CXX = g++
 CFLAGS = -Wall -W -pedantic -std=gnu99 -O2
 CXXFLAGS = -Wall -W -pedantic -std=gnu++11 -O2
-CPPFLAGS = -I.
+CPPFLAGS = -Iinclude
 LIBFLAGS =
 SOURCE = pgmtobraile.c pgmtobrailedux.c calibration.cc
 BUILD = $(SOURCE:%=build.%)

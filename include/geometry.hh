@@ -6,9 +6,9 @@
 #include <cstdio>
 #include <string>
 
-#include "ansi.hh"
+#include <rgb.hh>
+#include <ansi.hh>
 
-typedef uint8_t rgb_t[3];
 typedef size_t pos_t[2];
 
 struct geometry {
@@ -69,4 +69,5 @@ std::string geometry::to_string() const {
 	return std::string(buf);
 
 }
+
 #endif
