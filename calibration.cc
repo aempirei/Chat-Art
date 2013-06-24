@@ -25,6 +25,7 @@
 #include <map>
 #include <vector>
 
+#include "ansi.hh"
 #include "geometry.hh"
 
 typedef std::list<int> ints;
