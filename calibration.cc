@@ -46,17 +46,17 @@ typedef uint32_t code_t;
 static const code_t prefix_code = 0xA55FACED;
 static const code_t suffix_code = 0x1DEADFED;
 
-static const size_t code_sz = sizeof(code_t) * 8;
+static const int code_sz = sizeof(code_t) * 8;
 
-static const size_t calibration_lines = 8;
+static const int calibration_lines = 8;
 
 #define BIT_ISSET(n,b)	(((n) & (1 << (b))) != 0)
 
-bool try_code(const pnm& snapshot, code_t code, size_t x0, size_t y, size_t dx) {
+bool try_code(const pnm& snapshot, code_t code, int x0, int y, int dx) {
 
 	const rgb_t *c[2] = { NULL, NULL };
 
-	for(size_t column = 0; column < code_sz; column++) {
+	for(int column = 0; column < code_sz; column++) {
 
 		size_t x = x0 + column * dx;
 
@@ -82,11 +82,11 @@ bool try_code(const pnm& snapshot, code_t code, size_t x0, size_t y, size_t dx) 
 	return true;
 }
 
-bool find_code(const pnm& snapshot, size_t y0, code_t code, pos_t pos, size_t *tile_width) {
+bool find_code(const pnm& snapshot, int y0, code_t code, pos_t pos, int *tile_width) {
 
 	size_t max_tile_width = snapshot.width / code_sz;
 
-	for(size_t dx = max_tile_width; dx > 0; dx--) {
+	for(int dx = max_tile_width; dx > 0; dx--) {
 
 		size_t tile_columns = snapshot.width / dx;
 		size_t x_offset = snapshot.width % dx;
@@ -95,7 +95,7 @@ bool find_code(const pnm& snapshot, size_t y0, code_t code, pos_t pos, size_t *t
 
 			for(size_t y = y0; y < snapshot.height; y++) {
 
-				size_t x0 = column * dx + x_offset;
+				int x0 = column * dx + x_offset;
 
 				if(try_code(snapshot, code, x0, y, dx)) {
 
@@ -120,7 +120,7 @@ bool find_code(const pnm& snapshot, size_t y0, code_t code, pos_t pos, size_t *t
 // PROCESS
 //////////
 
-void assign_tiles(tiles& ts, size_t line, geometry::mode_type mode, int base) {
+void assign_tiles(tiles& ts, int line, geometry::mode_type mode, int base) {
 
 	for(size_t column = 0; column < ts.size(); column++) {
 
@@ -195,14 +195,14 @@ void process_calibration() {
 		pos_t prefix_pos;
 		pos_t suffix_pos;
 
-		size_t prefix_tile_width;
-		size_t suffix_tile_width;
+		int prefix_tile_width;
+		int suffix_tile_width;
 
 		if(	find_code(snapshot, 0, prefix_code, prefix_pos, &prefix_tile_width) &&
 				find_code(snapshot, prefix_pos[1] + 1, suffix_code, suffix_pos, &suffix_tile_width))
 		{
 
-			size_t hn = suffix_pos[1] - prefix_pos[1];
+			int hn = suffix_pos[1] - prefix_pos[1];
 
 			if(	(prefix_tile_width == suffix_tile_width) &&
 					(prefix_pos[0] == suffix_pos[0]) &&
@@ -222,7 +222,7 @@ void process_calibration() {
 //////////
 
 void display_code(code_t code) {
-	for(size_t bit_n = 0; bit_n < code_sz; bit_n++) {
+	for(int bit_n = 0; bit_n < code_sz; bit_n++) {
 		std::string bgcolor = ansi::bg(BIT_ISSET(code, bit_n) ? ansi::white : ansi::black);
 		std::cout << bgcolor << ' ';
 	}

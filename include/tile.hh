@@ -95,8 +95,8 @@ const rgb_sum_t& tile::stdev(rgb_sum_t& v) const {
 
 	v[0] = v[1] = v[2] = 0;
 
-	for(size_t y = 0; y < geo.size[1]; y++) {
-		for(size_t x = 0; x < geo.size[0]; x++) {
+	for(int y = 0; y < geo.size[1]; y++) {
+		for(int x = 0; x < geo.size[0]; x++) {
 
 			const rgb_t& w = *pixel(y,x);
 
@@ -117,8 +117,8 @@ const rgb_sum_t& tile::sum(rgb_sum_t& v) const {
 
 	v[0] = v[1] = v[2] = 0;
 
-	for(size_t y = 0; y < geo.size[1]; y++) {
-		for(size_t x = 0; x < geo.size[0]; x++) {
+	for(int y = 0; y < geo.size[1]; y++) {
+		for(int x = 0; x < geo.size[0]; x++) {
 
 			const rgb_t& w = *pixel(y,x);
 

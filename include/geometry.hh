@@ -9,14 +9,14 @@
 #include <rgb.hh>
 #include <ansi.hh>
 
-typedef size_t pos_t[2];
+typedef int pos_t[2];
 
 struct geometry {
 
 	constexpr static int ratio_shift = 2;
 	constexpr static int ratio_max = ((1 << (8-ratio_shift)) - 1);
 
-	enum mode_type { SOLID = 0, BGCOLOR = 1, FGCOLOR = 2, SYMBOL = 3 };
+	enum mode_type { SOLID = 0, BGCOLOR = 1, FGCOLOR = 2, SYMBOL = 3, MODE_MIN = 0, MODE_MAX = 3 };
 
 	pos_t size;
 
@@ -30,8 +30,6 @@ struct geometry {
 	int base;
 
 	std::string to_string() const;
-
-	void from_string(std::string& str);
 };
 
 std::string geometry::to_string() const {

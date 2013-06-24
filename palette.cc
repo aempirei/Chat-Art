@@ -31,7 +31,6 @@
 
 void help(const char *prog) {
 	std::cerr << "\nusage: " << prog << " < filename.conf\n\n";
-	// std::cerr << "example: djpeg screenshot.jpg | calibration -p > conf.d/ubuntu-mono-12.conf\n\n";
 	std::cerr << "report bugs to <aempirei@256.bz>\n\n";
 }
 
@@ -39,14 +38,64 @@ int main(int argc, char **argv) {
 
 	char line[128];
 
+	std::list<geometry> geometry_mode[4];
+	std::list<geometry>& bgcolor = geometry_mode[geometry::BGCOLOR];
+	std::list<geometry>& fgcolor = geometry_mode[geometry::FGCOLOR];
+	std::list<geometry>& symbol = geometry_mode[geometry::SYMBOL];
+
 	if(argc == 2 && strcmp(argv[1], "-h") == 0) {
 		help(*argv);
 		return -1;
 	}
 
 	while(fgets(line, sizeof(line) - 1, stdin) != NULL) {
-		printf("get line length of %d: %s", (int)strlen(line), line);
+
+		geometry g;
+
+		int rgb[3];
+		int n;
+		int mode;
+
+		char *p = strpbrk(line, "\r\n#");
+
+		if(p != NULL)
+			*p = '\0';
+
+		if(sscanf(line, " mcb %d %d %d color %d %d %d ", &mode, &g.code, &g.base, rgb+0, rgb+1, rgb+2) == 6) {
+
+			g.mode = (geometry::mode_type)mode;
+
+			for(int i = 0; i < 3; i++)
+				g.color[i] = (uint8_t)rgb[i];
+
+		} else if(sscanf(line, " mcb %d %d %d ratio %d %d size %d %d ",
+					&mode, &g.code, &g.base, &g.ratio, &n, g.size + 1, g.size + 0) == 7) {
+
+			g.mode = (geometry::mode_type)mode;
+
+		} else if(strspn(line, "\t ") == strlen(line)) {
+
+			// blank line, just continue
+			continue;
+
+		} else {
+
+			std::cerr << "bad configuration line: " << line << std::endl;
+			return -1;
+		}
+
+		if(g.mode >= geometry::MODE_MIN && g.mode <= geometry::MODE_MAX)
+			geometry_mode[g.mode].push_back(g);
 	}
 
-	exit(EXIT_SUCCESS);
+	std::cout << "background colors: " << bgcolor.size() << std::endl;
+	std::cout << "foreground colors: " << fgcolor.size() << std::endl;
+	std::cout << "character symbols: " << symbol.size() << std::endl;
+
+	for(int gm = geometry::MODE_MIN; gm <= geometry::MODE_MAX; gm++) {
+		std::cout << "[ mode " << gm << " ]" << std::endl;
+		for(auto g : geometry_mode[gm]) {
+			std::cout << g.to_string() << std::endl;
+		}
+	}
 }
