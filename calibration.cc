@@ -25,64 +25,14 @@
 #include <map>
 #include <vector>
 
+#include "geometry.hh"
+
 typedef std::list<int> ints;
-typedef size_t pos_t[2];
-
-///////
-// ANSI
-///////
-
-namespace ansi {
-
-	std::string start("\033[");
-
-	std::string esc(const ints& args, char mode) {
-
-		std::stringstream ss;
-		ints::const_iterator iter = args.begin();
-
-		ss << start;
-
-		if(iter != args.end()) {
-			ss << *iter;
-
-			for(iter++; iter != args.end(); iter++) {
-				ss << ';' << *iter;
-
-			}
-		}
-
-		ss << mode;
-
-		return ss.str();
-	}
-
-	std::string esc(int d, char mode) {
-		std::stringstream ss;
-		ss << start << d << mode;
-		return ss.str();
-	}
-
-	std::string bg(int d) {
-		return esc(d + 40, 'm');
-	}
-	std::string fg(int d) {
-		return esc(d + 30, 'm');
-	}
-
-	const std::string bold = esc(1, 'm');
-	const std::string clear = esc(0, 'm');
-
-	enum color_index { black, red, green, yellow, blue, magenta, cyan, white, first_color = black, last_color = white };
-
-	const char *color_name[] = { "black","red","green","yellow","blue","magenta","cyan","white" };
-}
 
 //////
 // RGB
 //////
 
-typedef uint8_t rgb_t[3];
 typedef int32_t rgb_sum_t[3];
 typedef std::map<uint8_t, int> histogram;
 
@@ -163,27 +113,6 @@ rgb_t *pnm::pixel(size_t y, size_t x) const {
 // TILE
 ///////
 
-
-struct geometry {
-
-	constexpr static int ratio_shift = 2;
-	constexpr static int ratio_max = ((1 << (8-ratio_shift)) - 1);
-
-	enum mode_type { SOLID = 0, BGCOLOR = 1, FGCOLOR = 2, SYMBOL = 3 };
-
-	pos_t size;
-
-	rgb_t color;
-
-	int ratio;
-
-	mode_type mode;
-
-	int code;
-	int base;
-
-	std::string to_string() const;
-};
 
 struct tile {
 
@@ -319,42 +248,6 @@ rgb_t *tile::pixel(size_t y, size_t x) const {
 
 size_t tile::n() const {
 	return geo.size[0] * geo.size[1];
-}
-
-std::string geometry::to_string() const {
-
-	char buf[128];
-	char modebuf[128];
-
-	switch(mode) {
-
-		case geometry::BGCOLOR: 
-		case geometry::FGCOLOR: 
-
-			snprintf(modebuf, sizeof(modebuf), " color %3d %3d %3d   # %s%s", color[0], color[1], color[2],
-					base ? "bold " : "", ansi::color_name[code]
-					);
-			break;
-
-		case geometry::SYMBOL:
-
-			snprintf(modebuf, sizeof(modebuf), " ratio %2d %2d size %d %d   # (%c)",
-					ratio, ratio_max - ratio,
-					(int)size[1], (int)size[0], base + code
-				);
-			break;
-
-		case geometry::SOLID:
-		default:
-			*modebuf = '\0';
-	}
-
-
-
-	snprintf(buf, sizeof(buf), "mcb %2d %2d %2d%s", mode, code, base, modebuf);
-
-	return std::string(buf);
-
 }
 
 std::string tile::to_string() const {
