@@ -14,8 +14,8 @@
 
 struct tile {
 
- 	constexpr static int mean_shift = 2;
-	constexpr static unsigned int mean_mask = ~((1U << mean_shift) - 1);
+ 	constexpr static int mean_shift = 1;
+	constexpr static uint32_t mean_mask = ~((1U << mean_shift) - 1);
 
 	const pnm *source;
 
@@ -134,7 +134,7 @@ void tile::set_color_lum() {
 	geo.ratio = 0;
 	for(int i = 0; i < 3; i++) {
 		uint8_t level = (uint8_t)(rgb_sum[i] / n()) >> geometry::ratio_shift;
-		geo.color[i] = (uint8_t)(rgb_sum[i] * 255 / (0x3f * n())) & mean_mask;
+		geo.color[i] = rgb_mean[i] & mean_mask;
 		if(level > geo.ratio)
 			geo.ratio = level;
 	}
@@ -163,7 +163,7 @@ std::string tile::to_string() const {
 		case geometry::SYMBOL:
 			snprintf(basebuf, sizeof(basebuf), "(%c)" , geo.base + geo.code);
 			break;
-		case geometry::SOLID:
+		case geometry::NOP:
 		default:
 			*basebuf = '\0';
 	}

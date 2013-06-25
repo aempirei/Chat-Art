@@ -14,13 +14,13 @@ typedef int pos_t[2];
 struct geometry {
 
 	constexpr static int ratio_shift = 2;
-	constexpr static int ratio_max = ((1 << (8-ratio_shift)) - 1);
+	constexpr static uint32_t ratio_max = ((1UL << (8-ratio_shift)) - 1);
 
-	enum mode_type { SOLID = 0, BGCOLOR = 1, FGCOLOR = 2, SYMBOL = 3, MODE_MIN = 0, MODE_MAX = 3 };
+	enum mode_type { NOP = 0, BGCOLOR = 1, FGCOLOR = 2, SYMBOL = 3, MODE_MIN = 0, MODE_MAX = 3, ERR = -1 };
 
 	pos_t size;
 
-	rgb_t color;
+	rgb_sum_t color;
 
 	int ratio;
 
@@ -30,6 +30,9 @@ struct geometry {
 	int base;
 
 	std::string to_string() const;
+	int n() const {
+		return size[0] * size[1];
+	}
 };
 
 std::string geometry::to_string() const {
@@ -55,7 +58,7 @@ std::string geometry::to_string() const {
 				);
 			break;
 
-		case geometry::SOLID:
+		case geometry::NOP:
 		default:
 			*modebuf = '\0';
 	}

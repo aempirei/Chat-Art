@@ -160,7 +160,7 @@ void process_tiles(config& cfg, const pnm& snapshot, const pos_t size, const pos
 	cfg.bg_colors.resize(8, base);
 	cfg.fg_colors.resize(8, base);
 
-	assign_tiles(    solid_tiles, 1, geometry::SOLID,   0);
+	assign_tiles(    solid_tiles, 1, geometry::NOP    , 0);
 
 	assign_tiles(  cfg.bg_colors, 2, geometry::BGCOLOR, 0);
 	assign_tiles(  cfg.fg_colors, 3, geometry::FGCOLOR, 1);
