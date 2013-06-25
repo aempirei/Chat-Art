@@ -98,6 +98,12 @@ bool geometry_from_string(geometry& g, std::string s) {
 	return true;
 }
 
+long ms(const std::list<long>& xs) {
+	long long acc = 0;
+	for(auto x : xs)
+		acc += x * x;
+	return (long)rint(sqrt(acc));
+}
 
 std::string ansi_match(int R, int G, int B, const geometry_list& bg, const geometry_list& fg, const geometry_list& sym) {
 	char best[128];
@@ -111,14 +117,14 @@ std::string ansi_match(int R, int G, int B, const geometry_list& bg, const geome
 				for(int i = 0; i < 3; i++) { 
 					y[i] = b.color[i] * (s.n() - s.ratio) + f.color[i] * s.ratio;
 					y[i] *= 255;
-					y[i] /= s.n() * 74;
+					y[i] /= s.n() * 80;
 				}
 
 				int dr = labs(R - y[0]);
 				int dg = labs(G - y[1]);
 				int db = labs(B - y[2]);
 
-				int test = dr+dg+db;//dr * dr + dg * dg + db * db;
+				long test = ms({dr,dg,db});
 				if(test < min) {
 					min = test;
 					snprintf(best, sizeof(best),
@@ -182,18 +188,18 @@ int main(int argc, char **argv) {
 	std::cout << "character symbols: " << symbol.size() << std::endl;
 	std::cout << "max. palette size: " << (bgcolor.size() * fgcolor.size() * symbol.size()) << std::endl;
 
-	for(int r = 0; r < 256; r += 16) {
-		for(int z = 0; z < 2; z++) {
-			for(int g = 0; g < 256; g += 16) {
-				for(int b = z * 16; b < 256; b += 32) {
+	for(int r = 0; r < 256; r += 14) {
+		for(int g = 0; g < 256; g += 32) {
+			for(int b = 0; b < 256; b += 14) {
 
-					std::string s( ansi_match( r,g,b, bgcolor,fgcolor,symbol ));
+				std::string s( ansi_match( r,g,b, bgcolor,fgcolor,symbol ));
 
-					fputs(s.c_str(), stdout);
-				}
+				fputs(s.c_str(), stdout);
 			}
-		putchar('\n');
+			fputs(ansi::clear.c_str(), stdout);
+			putchar(' ');
 		}
-	
+		putchar('\n');
 	}
+
 }
