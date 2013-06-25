@@ -8,11 +8,13 @@
 // git: git@github.com:aempirei/Chat-Art.git
 // aim: ambientempire
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cstdint>
+#include <climits>
+
 #include <math.h>
-#include <stdint.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -97,20 +99,37 @@ bool geometry_from_string(geometry& g, std::string s) {
 }
 
 
-std::string ansi_match(int r, int g, int b, const geometry_list& bg, const geometry_list& fg, const geometry_list& sym) {
-	std::string best;
+std::string ansi_match(int R, int G, int B, const geometry_list& bg, const geometry_list& fg, const geometry_list& sym) {
+	char best[128];
+	int min = INT_MAX;
 	for(auto b : bg) {
 		for(auto f : fg) {
 			for(auto s : sym) {
-				rgb_sum_t y = {0,0,0};
+
+				rgb_sum_t y;
+
 				for(int i = 0; i < 3; i++) { 
 					y[i] = b.color[i] * (s.n() - s.ratio) + f.color[i] * s.ratio;
-					y[i] /= s.n();
+					y[i] *= 255;
+					y[i] /= s.n() * 74;
+				}
+
+				int dr = labs(R - y[0]);
+				int dg = labs(G - y[1]);
+				int db = labs(B - y[2]);
+
+				int test = dr+dg+db;//dr * dr + dg * dg + db * db;
+				if(test < min) {
+					min = test;
+					snprintf(best, sizeof(best),
+							"%s%c",
+							ansi::esc({f.base, f.code + 30, b.code + 40}, 'm').c_str(),
+							s.base + s.code);
 				}
 			}
 		}
 	}
-	return best + "X";
+	return std::string(best);
 }
 
 void help(const char *prog) {
