@@ -1,7 +1,7 @@
 CC = gcc
 CXX = g++
-CFLAGS = -Wall -W -pedantic -std=gnu99 -O2
-CXXFLAGS = -Wall -W -pedantic -std=gnu++11 -O2
+CFLAGS = -Wall -W -pedantic -std=gnu99 -O2 -ggdb
+CXXFLAGS = -Wall -W -pedantic -std=gnu++11 -O2 -ggdb
 CPPFLAGS = -Iinclude
 LIBFLAGS =
 SOURCE = calibration.cc palette.cc pgmtobraile.c pgmtobrailedux.c pnmtoansi.cc

@@ -1,5 +1,5 @@
-// palette
-// Diplay color palette based on a given calibration file
+// pnmtoansi
+// Diplay color pnmtoansi based on a given calibration file
 
 // Copyright(c) 2013 by Christopher Abad | 20 GOTO 10
 
@@ -29,7 +29,9 @@
 
 #include <geometry.hh>
 #include <ansi.hh>
+#include <pnm.hh>
 #include <rgb.hh>
+#include <tile.hh>
 
 typedef std::list<geometry> geometry_list;
 
@@ -117,7 +119,7 @@ std::string ansi_match(int R, int G, int B, const geometry_list& bg, const geome
 				for(int i = 0; i < 3; i++) { 
 					y[i] = b.color[i] * (s.n() - s.ratio) + f.color[i] * s.ratio;
 					y[i] *= 255;
-					y[i] /= 64 * s.n();
+					y[i] /= 80 * s.n();
 				}
 
 				int dr = labs(R - y[0]);
@@ -141,7 +143,7 @@ std::string ansi_match(int R, int G, int B, const geometry_list& bg, const geome
 }
 
 void help(const char *prog) {
-	std::cerr << "\nusage: " << prog << " < filename.conf\n\n";
+	std::cerr << "\nusage: " << prog << " image.pnm < filename.conf\n\n";
 	std::cerr << "report bugs to <aempirei@256.bz>\n\n";
 }
 
@@ -157,6 +159,11 @@ int main(int argc, char **argv) {
 	std::list<geometry>& symbol = geometry_mode[geometry::SYMBOL];
 
 	if(argc == 2 && strcmp(argv[1], "-h") == 0) {
+		help(*argv);
+		return -1;
+	}
+
+	if(argc != 2) {
 		help(*argv);
 		return -1;
 	}
@@ -185,23 +192,42 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	FILE *fp = fopen(argv[1],"r");
+
+	if(fp == NULL) {
+		perror("fopen()");
+		return -1;
+	}
+
+	pnm f(fp);
+	typedef std::vector<tile> tiles;
+
+	const pos_t t0 = {0,0};
+	pos_t t_sz;
+	memcpy(t_sz, symbol.front().size, sizeof(t_sz));
+
+	t_sz[0] >>= 1;
+	t_sz[1] >>= 1;
+
+	if(!f.isloaded()) {
+		std::cerr << "failed to load pnm image from " << argv[1] << std::endl;
+	}
+
 	std::cout << "background colors: " << bgcolor.size() << std::endl;
 	std::cout << "foreground colors: " << fgcolor.size() << std::endl;
 	std::cout << "character symbols: " << symbol.size() << std::endl;
-	std::cout << "max. palette size: " << (bgcolor.size() * fgcolor.size() * symbol.size()) << std::endl;
+	std::cout << "max. pnmtoansi  " << t_sz[0] << ' ' << t_sz[1] << " size: " << (bgcolor.size() * fgcolor.size() * symbol.size()) << std::endl;
 
-	for(int r = 0; r < 256; r += 14) {
-		for(int g = 0; g < 256; g += 64) {
-			for(int b = 0; b < 256; b += 8) {
+	int w = f.width / t_sz[0];
+	int h = f.height / t_sz[1];
 
-				std::string s( ansi_match( r,g,b, bgcolor,fgcolor,symbol ));
-
-				fputs(s.c_str(), stdout);
-			}
-			fputs(ansi::clear.c_str(), stdout);
-			putchar(' ');
+	for(int y = 0; y < h; y++) {
+		for(int x = 0; x < w; x++) {
+			tile base(&f,t_sz,t0);
+			base.move(y,x);
+			std::string s( ansi_match( base.rgb_mean[0],base.rgb_mean[1],base.rgb_mean[2], bgcolor,fgcolor,symbol ));
+			fputs(s.c_str(), stdout);
 		}
 		putchar('\n');
 	}
-
 }
