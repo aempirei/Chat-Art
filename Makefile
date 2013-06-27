@@ -4,7 +4,7 @@ CFLAGS = -Wall -W -pedantic -std=gnu99 -O2
 CXXFLAGS = -Wall -W -pedantic -std=gnu++11 -O2
 CPPFLAGS = -Iinclude
 LIBFLAGS =
-SOURCE = calibration.cc palette.cc pgmtobraile.c pgmtobrailedux.c
+SOURCE = calibration.cc palette.cc pgmtobraile.c pgmtobrailedux.c pnmtoansi.cc
 BUILD = $(SOURCE:%=build.%)
 WIPE = $(SOURCE:%=wipe.%)
 
@@ -55,4 +55,12 @@ wipe.pgmtobrailedux.c:
 
 pgmtobrailedux: pgmtobrailedux.o
 	$(CC) $(CCFLAGS) -o $@ $^ $(LIBFLAGS)
+
+build.pnmtoansi.cc: pnmtoansi.o pnmtoansi
+
+wipe.pnmtoansi.cc:
+	rm -f pnmtoansi
+
+pnmtoansi: pnmtoansi.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBFLAGS)
 
